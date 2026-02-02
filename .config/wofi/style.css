@@ -1,0 +1,83 @@
+* {
+    font-family: "Cantarell", "Noto Sans", sans-serif;
+    font-size: 15px;
+}
+
+window {
+    background-color: rgba(15, 20, 25, 0.95);
+    border: 1px solid rgba(89, 92, 99, 0.5);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+#input {
+    margin: 12px 12px 8px 12px;
+    padding: 10px 35px 10px 15px;
+    background-color: rgba(25, 30, 38, 0.9);
+    border: none;
+    border-radius: 6px;
+    color: #bfbdb6;
+    outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234d5566' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 10px center;
+    background-size: 16px;
+}
+
+#input::placeholder {
+    color: #4d5566;
+}
+
+#inner-box {
+    margin: 0px;
+    padding: 8px;
+    background-color: transparent;
+}
+
+#outer-box {
+    margin: 0px;
+    padding: 0px;
+    background-color: transparent;
+}
+
+#scroll {
+    margin: 0px;
+    padding: 0px;
+}
+
+#text {
+    margin: 0px;
+    padding: 0px 12px;
+    color: #bfbdb6;
+}
+
+#entry {
+    margin: 1px 4px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background-color: transparent;
+    transition: all 0.15s ease;
+}
+
+#entry:selected {
+    background-color: rgba(50, 100, 200, 0.5);
+    color: #0a0e14;
+}
+
+#entry:hover {
+    background-color: rgba(25, 30, 38, 0.6);
+}
+
+#entry:selected #text {
+    color: #0a0e14;
+    font-weight: 500;
+}
+
+#entry:hover #text {
+    color: #e6e1cf;
+}
+
+#img {
+    margin-right: 12px;
+    padding: 0px;
+}

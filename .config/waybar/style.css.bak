@@ -1,0 +1,489 @@
+/* ============================================
+   OneDark Theme for Waybar
+   ============================================
+
+   Color Palette:
+   - Background:    #282c34
+   - Background+:   #21252b (darker)
+   - Background++:  #3e4451 (lighter)
+   - Foreground:    #abb2bf
+   - Red:           #e06c75
+   - Green:         #98c379
+   - Yellow:        #e5c07b
+   - Blue:          #61afef
+   - Magenta:       #c678dd
+   - Cyan:          #56b6c2
+   - Orange:        #d19a66
+   ============================================ */
+
+/* Reset & Base Styles */
+* {
+    font-family: "JetBrainsMono Nerd Font", "Font Awesome 6 Free", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+/* Main Bar */
+window#waybar {
+    background-color: transparent;
+    color: #abb2bf;
+    border-radius: 8px;
+    border: none;
+    transition-property: background-color;
+    transition-duration: 0.3s;
+}
+
+window#waybar.hidden {
+    opacity: 0.2;
+}
+
+/* ============================================
+   Workspaces
+   ============================================ */
+#workspaces {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 0;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    color: #5c6370;
+    background-color: #21252b;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+#workspaces button:hover {
+    background-color: #3e4451;
+    color: #abb2bf;
+}
+
+#workspaces button.active {
+    background-color: #61afef;
+    color: #282c34;
+    font-weight: bold;
+}
+
+#workspaces button.urgent {
+    background-color: #e06c75;
+    color: #282c34;
+}
+
+#workspaces button.persistent {
+    color: #4b5263;
+}
+
+#workspaces button.empty {
+    color: #3e4451;
+}
+
+/* ============================================
+   Window Title
+   ============================================ */
+#window {
+    padding: 0 12px;
+    color: #abb2bf;
+    font-weight: bold;
+    background-color: #21252b;
+    border-radius: 6px;
+}
+
+#window.empty {
+    background-color: transparent;
+}
+
+/* ============================================
+   Taskbar
+   ============================================ */
+#taskbar {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 0;
+}
+
+#taskbar button {
+    padding: 0 6px;
+    background-color: #21252b;
+    color: #abb2bf;
+    border-radius: 4px;
+    margin: 0 2px;
+    transition: all 0.2s ease;
+}
+
+#taskbar button:hover {
+    background-color: #3e4451;
+}
+
+#taskbar button.active {
+    background-color: #61afef;
+    color: #282c34;
+}
+
+#taskbar button.minimized {
+    color: #5c6370;
+}
+
+/* ============================================
+   Common Module Styles
+   ============================================ */
+#clock,
+#battery,
+#network,
+#bluetooth,
+#pulseaudio,
+#tray,
+#custom-power,
+#custom-notifications,
+#mpris,
+#keyboard-state,
+#language,
+#privacy,
+#systemd-failed-units,
+#gamemode,
+#power-profiles-daemon {
+    padding: 0 10px;
+    margin: 0 2px;
+    background-color: #21252b;
+    color: #abb2bf;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+/* ============================================
+   Clock
+   ============================================ */
+#clock {
+    color: #61afef;
+    font-weight: bold;
+}
+
+#clock:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Battery
+   ============================================ */
+#battery {
+    color: #98c379;
+}
+
+#battery.charging,
+#battery.plugged {
+    color: #98c379;
+}
+
+#battery.warning:not(.charging) {
+    color: #e5c07b;
+}
+
+#battery.critical:not(.charging) {
+    background-color: #e06c75;
+    color: #282c34;
+    animation: blink 0.8s linear infinite alternate;
+}
+
+#battery.full {
+    color: #98c379;
+}
+
+/* ============================================
+   Network
+   ============================================ */
+#network {
+    color: #56b6c2;
+}
+
+#network.disconnected {
+    color: #e06c75;
+}
+
+#network.linked {
+    color: #e5c07b;
+}
+
+#network:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Bluetooth
+   ============================================ */
+#bluetooth {
+    color: #61afef;
+}
+
+#bluetooth.connected {
+    color: #98c379;
+}
+
+#bluetooth.off,
+#bluetooth.disabled {
+    color: #5c6370;
+}
+
+#bluetooth:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Pulseaudio
+   ============================================ */
+#pulseaudio {
+    color: #c678dd;
+}
+
+#pulseaudio.muted {
+    color: #e06c75;
+}
+
+#pulseaudio.bluetooth {
+    color: #61afef;
+}
+
+#pulseaudio:hover {
+    background-color: #3e4451;
+}
+
+/* Pulseaudio Slider */
+#pulseaudio-slider {
+    padding: 0 4px;
+    margin: 0;
+    background-color: #21252b;
+    border-radius: 6px;
+}
+
+#pulseaudio-slider slider {
+    min-height: 0px;
+    min-width: 0px;
+    opacity: 0;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+#pulseaudio-slider trough {
+    min-height: 8px;
+    min-width: 80px;
+    border-radius: 4px;
+    background-color: #3e4451;
+}
+
+#pulseaudio-slider highlight {
+    min-width: 8px;
+    border-radius: 4px;
+    background-color: #c678dd;
+}
+
+/* ============================================
+   Tray
+   ============================================ */
+#tray {
+    background-color: #21252b;
+    border-radius: 6px;
+    padding: 0 6px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: #e06c75;
+    border-radius: 4px;
+}
+
+#tray menu {
+    background-color: #282c34;
+    border: 1px solid #3e4451;
+    border-radius: 6px;
+}
+
+#tray menu menuitem {
+    padding: 4px 8px;
+}
+
+#tray menu menuitem:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Media Player (MPRIS)
+   ============================================ */
+#mpris {
+    color: #c678dd;
+}
+
+#mpris.playing {
+    color: #98c379;
+}
+
+#mpris.paused {
+    color: #e5c07b;
+}
+
+#mpris.stopped {
+    color: #5c6370;
+}
+
+#mpris:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Power Menu
+   ============================================ */
+#custom-power {
+    color: #e06c75;
+    padding: 0 12px;
+    margin-left: 4px;
+}
+
+#custom-power:hover {
+    background-color: #e06c75;
+    color: #282c34;
+}
+
+/* ============================================
+   Notifications
+   ============================================ */
+#custom-notifications {
+    color: #61afef;
+    font-size: 18px;
+    padding: 0 12px;
+}
+
+#custom-notifications.dnd-notification,
+#custom-notifications.dnd-none,
+#custom-notifications.dnd-inhibited-notification,
+#custom-notifications.dnd-inhibited-none {
+    color: #e5c07b;
+}
+
+#custom-notifications:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Keyboard State & Language
+   ============================================ */
+#keyboard-state {
+    color: #e5c07b;
+}
+
+#keyboard-state label.locked {
+    color: #e06c75;
+}
+
+#language {
+    color: #56b6c2;
+}
+
+#language:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Privacy Indicators
+   ============================================ */
+#privacy {
+    color: #e5c07b;
+    padding: 0 8px;
+}
+
+#privacy-item {
+    padding: 0 4px;
+}
+
+#privacy-item.screenshare {
+    color: #e06c75;
+}
+
+#privacy-item.audio-in {
+    color: #e5c07b;
+}
+
+/* ============================================
+   System Monitoring
+   ============================================ */
+#systemd-failed-units {
+    color: #e06c75;
+    font-weight: bold;
+}
+
+#systemd-failed-units.ok {
+    color: #98c379;
+}
+
+#gamemode {
+    color: #d19a66;
+}
+
+#gamemode.active {
+    color: #98c379;
+}
+
+/* ============================================
+   Power Profiles
+   ============================================ */
+#power-profiles-daemon {
+    color: #98c379;
+}
+
+#power-profiles-daemon.performance {
+    color: #e06c75;
+}
+
+#power-profiles-daemon.balanced {
+    color: #61afef;
+}
+
+#power-profiles-daemon.power-saver {
+    color: #98c379;
+}
+
+#power-profiles-daemon:hover {
+    background-color: #3e4451;
+}
+
+/* ============================================
+   Tooltip
+   ============================================ */
+tooltip {
+    background-color: #21252b;
+    border: 1px solid #3e4451;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+tooltip label {
+    color: #abb2bf;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes blink {
+    from {
+        background-color: #e06c75;
+    }
+    to {
+        background-color: #282c34;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 1;
+    }
+}

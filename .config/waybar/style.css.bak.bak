@@ -1,0 +1,325 @@
+@import "colors.css";
+
+/* =====================================================================
+   WAYBAR STYLE - Floating Islands Design
+
+   Islands:
+   - Left:   workspaces → tray → taskbar        (@primary)
+   - Center: notifications → mpris → clock      (@tertiary)
+   - Right:  pulseaudio → bluetooth → network → power-profiles → battery → power (@secondary)
+   ===================================================================== */
+
+/* =========================== GLOBAL =========================== */
+
+* {
+    font-family: JetBrainsMono Nerd Font Propo Regular;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: @on_surface;
+}
+
+window#waybar {
+    background: transparent;
+}
+
+/* =========================== MODULE RESET =========================== */
+
+#workspaces,
+#tray,
+#taskbar,
+#custom-notifications,
+#mpris,
+#clock,
+#pulseaudio,
+#bluetooth,
+#network,
+#power-profiles-daemon,
+#battery,
+#custom-power {
+    padding: 0;
+    margin: 0;
+    background: transparent;
+}
+
+/* =========================== LEFT ISLAND =========================== */
+
+#workspaces,
+#tray,
+#taskbar {
+    color: @primary;
+    border: 2px solid @primary;
+    border-left: none;
+    border-right: none;
+}
+
+#workspaces {
+    background: linear-gradient(
+        90deg,
+        @primary_container,
+        @surface_container_highest
+    );
+    border-left: 2px solid @primary;
+    border-radius: 5px 0 0 5px;
+    padding: 4px 8px;
+}
+
+#tray {
+    background: @surface_container_highest;
+    padding: 4px 10px;
+}
+
+#taskbar {
+    background: linear-gradient(
+        90deg,
+        @surface_container_highest,
+        @primary_container
+    );
+    border-right: 2px solid @primary;
+    border-radius: 0 5px 5px 0;
+    margin-right: 8px;
+    padding: 4px 10px;
+}
+
+/* =========================== CENTER ISLAND =========================== */
+
+#custom-notifications,
+#mpris,
+#clock {
+    color: @tertiary;
+    border: 2px solid @tertiary;
+    border-left: none;
+    border-right: none;
+    padding: 4px 14px;
+}
+
+#custom-notifications {
+    background: linear-gradient(
+        90deg,
+        @tertiary_container,
+        @surface_container_highest
+    );
+    border-left: 2px solid @tertiary;
+    border-radius: 5px 0 0 5px;
+}
+
+#mpris {
+    background: @surface_container_highest;
+}
+
+#mpris.empty {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+#clock {
+    background: linear-gradient(
+        90deg,
+        @surface_container_highest,
+        @tertiary_container
+    );
+    border-right: 2px solid @tertiary;
+    border-radius: 0 5px 5px 0;
+}
+
+/* =========================== RIGHT ISLAND =========================== */
+
+#pulseaudio,
+#bluetooth,
+#network,
+#power-profiles-daemon,
+#battery,
+#custom-power {
+    color: @secondary;
+    border: 2px solid @secondary;
+    border-left: none;
+    border-right: none;
+}
+
+#pulseaudio {
+    background: linear-gradient(
+        90deg,
+        @secondary_container,
+        @surface_container_highest
+    );
+    border-left: 2px solid @secondary;
+    border-radius: 5px 0 0 5px;
+    padding: 4px 12px;
+}
+
+#bluetooth,
+#network,
+#power-profiles-daemon,
+#battery {
+    background: @surface_container_highest;
+    padding: 4px 10px;
+}
+
+#custom-power {
+    background: linear-gradient(
+        90deg,
+        @surface_container_highest,
+        @secondary_container
+    );
+    border-right: 2px solid @secondary;
+    border-radius: 0 5px 5px 0;
+    padding: 4px 14px;
+    font-size: 1.3rem;
+}
+
+/* =========================== WORKSPACE BUTTONS =========================== */
+
+#workspaces button {
+    color: @primary;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 2px 8px;
+    margin: 2px;
+    opacity: 0.6;
+}
+
+#workspaces button.active {
+    background: @primary_container;
+    border-color: @primary;
+    opacity: 1;
+}
+
+#workspaces button:hover,
+#workspaces button.active:hover {
+    background: @primary_container;
+    border-color: @primary;
+    color: @on_primary_container;
+    opacity: 1;
+}
+
+#workspaces button.urgent {
+    background: @error;
+    border-color: @error;
+    color: @on_error;
+    opacity: 1;
+    animation: urgent-pulse 0.5s ease-in-out infinite alternate;
+}
+
+/* =========================== HOVER EFFECTS =========================== */
+
+/* Tray/taskbar children need transparent bg for parent hover to show */
+#tray > *,
+#taskbar > * {
+    background: transparent;
+}
+
+#tray:hover,
+#tray > *:hover,
+#taskbar:hover,
+#taskbar > *:hover {
+    background: @primary;
+    color: @on_primary;
+}
+
+#custom-notifications:hover,
+#mpris:hover,
+#mpris:hover *,
+#clock:hover {
+    background: @tertiary;
+    color: @on_tertiary;
+}
+
+#pulseaudio:hover,
+#pulseaudio:hover *,
+#bluetooth:hover,
+#bluetooth:hover *,
+#network:hover,
+#network:hover *,
+#power-profiles-daemon:hover,
+#power-profiles-daemon:hover *,
+#battery:hover,
+#battery:hover *,
+#custom-power:hover,
+#custom-power:hover * {
+    background: @secondary;
+    color: @on_secondary;
+}
+
+/* =========================== MODULE STATES =========================== */
+
+/* Battery */
+#battery.warning {
+    background: @secondary;
+    border-color: @secondary;
+    color: @on_secondary;
+}
+
+#battery.critical {
+    background: @error;
+    border-color: @error;
+    color: @on_error;
+    animation: critical-pulse 0.6s ease-in-out infinite alternate;
+}
+
+#battery.charging,
+#battery.plugged {
+    background: @primary;
+    border-color: @primary;
+    color: @on_primary;
+}
+
+/* Bluetooth */
+#bluetooth.disabled {
+    opacity: 0.5;
+}
+
+/* Network */
+#network.disconnected {
+    color: @error;
+}
+
+#network.wifi:hover,
+#network.linked:hover,
+#network.disconnected:hover {
+    color: @on_secondary;
+}
+
+/* Pulseaudio */
+#pulseaudio.muted {
+    color: @error;
+}
+
+#pulseaudio.muted:hover {
+    color: @on_secondary;
+}
+
+/* MPRIS */
+#mpris.paused {
+    color: @outline;
+    opacity: 0.7;
+}
+
+#mpris.playing:hover,
+#mpris.playing:hover *,
+#mpris.paused:hover,
+#mpris.paused:hover * {
+    color: @on_tertiary;
+    opacity: 1;
+}
+
+/* =========================== ANIMATIONS =========================== */
+
+@keyframes urgent-pulse {
+    from {
+        box-shadow: 0 0 4px @error;
+    }
+    to {
+        box-shadow: 0 0 16px @error;
+    }
+}
+
+@keyframes critical-pulse {
+    from {
+        box-shadow: 0 0 4px @error;
+    }
+    to {
+        box-shadow: 0 0 20px @error;
+    }
+}
