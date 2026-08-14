@@ -1,0 +1,134 @@
+# mkcd: mkdir -p and cd
+mkcd() {
+  [[ -n $1 ]] || { print -u2 "usage: mkcd <dir>"; return 1 }
+  mkdir -p -- "$1" && cd -- "$1"
+}
+
+# extract: archive swiss-army knife
+extract() {
+  if [[ ! -f $1 ]]; then
+    print -u2 "extract: '$1' is not a valid file"
+    return 1
+  fi
+  case $1 in
+    *.tar.bz2|*.tbz2) tar xjf "$1" ;;
+    *.tar.gz|*.tgz)   tar xzf "$1" ;;
+    *.tar.xz|*.txz)   tar xJf "$1" ;;
+    *.tar.zst)        tar --zstd -xf "$1" ;;
+    *.tar)            tar xf "$1" ;;
+    *.bz2)            bunzip2 "$1" ;;
+    *.gz)             gunzip "$1" ;;
+    *.zip)            unzip "$1" ;;
+    *.rar)            unrar x "$1" ;;
+    *.7z)             7z x "$1" ;;
+    *.zst)            unzstd "$1" ;;
+    *) print -u2 "extract: unknown archive type: $1"; return 1 ;;
+  esac
+}
+
+# fcd: fuzzy cd into a subdirectory
+fcd() {
+  local dir
+  if command -v fd >/dev/null 2>&1; then
+    dir=$(fd --type d --hidden --exclude .git . "${1:-.}" 2>/dev/null | fzf --height 40% --reverse --preview 'lsd --color=always --icon=always {} 2>/dev/null | head -50')
+  else
+    dir=$(find "${1:-.}" -type d 2>/dev/null | fzf --height 40% --reverse)
+  fi
+  [[ -n $dir ]] && cd -- "$dir"
+}
+
+# fedit: fuzzy-find a file and open in editor
+fedit() {
+  local file
+  if command -v fd >/dev/null 2>&1; then
+    file=$(fd --type f --hidden --exclude .git . "${1:-.}" 2>/dev/null | fzf --height 60% --reverse --preview 'bat --color=always --style=numbers --line-range=:200 {} 2>/dev/null')
+  else
+    file=$(find "${1:-.}" -type f 2>/dev/null | fzf --height 60% --reverse --preview 'bat --color=always --style=numbers --line-range=:200 {} 2>/dev/null')
+  fi
+  [[ -n $file ]] && ${EDITOR:-zeditor} -- "$file"
+}
+
+# killport: kill process listening on a TCP port
+killport() {
+  [[ -n $1 ]] || { print -u2 "usage: killport <port>"; return 1 }
+  local pids
+  pids=$(ss -lptn "sport = :$1" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
+  if [[ -z $pids ]]; then
+    print "no listener on port $1"
+    return 1
+  fi
+  echo "$pids" | xargs -r kill
+  print "killed: $pids"
+}
+
+# bak: copy file to file.bak
+bak() {
+  [[ -n $1 ]] || { print -u2 "usage: bak <file>"; return 1 }
+  cp -a -- "$1" "$1.bak"
+  print "backed up → $1.bak"
+}
+
+# take: clone repo and cd into it (or mkcd)
+take() {
+  if [[ $1 == *://* || $1 == git@* ]]; then
+    local repo=${1:t:r}
+    git clone "$1" "${2:-$repo}" && cd -- "${2:-$repo}"
+  else
+    mkcd "$1"
+  fi
+}
+
+# digg: prettier dig-like lookup via dog/drill/dig
+digg() {
+  if command -v dog >/dev/null 2>&1; then
+    dog "$@"
+  elif command -v drill >/dev/null 2>&1; then
+    drill "$@"
+  else
+    dig +short "$@"
+  fi
+}
+
+# cheat: quick curl cheat.sh
+cheat() {
+  curl -s "https://cheat.sh/${1:-}"
+}
+
+# up: go up N directories (default 1)
+up() {
+  local n=${1:-1}
+  local path=""
+  for ((i = 0; i < n; i++)); do path="../$path"; done
+  cd -- "$path" || return
+}
+
+# h: search history with fzf and re-run
+h() {
+  local cmd
+  cmd=$(fc -rl 1 | fzf --height 50% --reverse --query="$1" | sed 's/^[ ]*[0-9]*[ ]*//')
+  [[ -n $cmd ]] && print -z -- "$cmd"
+}
+
+# colors: print a truecolor palette strip
+colors() {
+  local i
+  for i in {0..255}; do
+    print -nP "%K{$i}  %k"
+    (( (i + 1) % 16 == 0 )) && print
+  done
+}
+
+# path_add: prepend a directory to path if it exists
+path_add() {
+  [[ -d $1 ]] && path=("$1" $path)
+}
+
+# aff / animate-arch: spinning Arch logo + fastfetch
+# (binary lives in ~/.local/bin; this is a thin wrapper if PATH misses it)
+if ! command -v aff >/dev/null 2>&1; then
+  aff() {
+    local script="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/animate-arch"
+    [[ -x $script ]] || { print -u2 "aff: missing $script"; return 1 }
+    "$script" "$@"
+  }
+fi

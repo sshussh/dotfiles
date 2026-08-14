@@ -1,0 +1,822 @@
+#!/usr/bin/env python3
+"""Generate and apply a Matugen palette from the active GNOME wallpaper."""
+
+from __future__ import annotations
+
+import argparse
+import colorsys
+import fcntl
+import json
+import logging
+import os
+from pathlib import Path
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from typing import Any
+from urllib.parse import unquote, urlparse
+import xml.etree.ElementTree as ET
+
+import gi
+
+gi.require_version("Gio", "2.0")
+gi.require_version("GLib", "2.0")
+gi.require_version("GLibUnix", "2.0")
+from gi.repository import Gio, GLib, GLibUnix  # noqa: E402
+
+
+LOG = logging.getLogger("matugen-wallpaper")
+USER_HOME = Path("/home/shush")
+CONFIG_HOME = USER_HOME / ".config"
+CACHE_HOME = USER_HOME / ".cache" / "matugen"
+MATUGEN = USER_HOME / ".local" / "bin" / "matugen"
+MATUGEN_CONFIG = CONFIG_HOME / "matugen" / "config.toml"
+WATCH_STATE = CACHE_HOME / "watch-state.json"
+LOCK_FILE = CACHE_HOME / "apply.lock"
+ICON_THEME_HOME = USER_HOME / ".local" / "share" / "icons" / "Matugen"
+HELIUM_CONFIG_HOME = CONFIG_HOME / "net.imput.helium"
+HELIUM_PREFERENCES = HELIUM_CONFIG_HOME / "Default" / "Preferences"
+HELIUM_SINGLETONS = tuple(HELIUM_CONFIG_HOME / name for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"))
+HELIUM_BACKUP = CONFIG_HOME / "matugen" / "backups" / "20260814-helium" / "Preferences.before-matugen"
+HANABI_SCHEMA = "io.github.jeffshee.hanabi-extension"
+HANABI_EXTENSION = "hanabi-extension@jeffshee.github.io"
+HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
+ADWAITA_FOLDER_BLUES = {"#438de6", "#62a0ea", "#a4caee", "#afd4ff", "#c0d5ea"}
+ICON_OUTPUTS = (
+    (Path("scalable/places"), "folder.svg"),
+    (Path("scalable/places"), "folder-documents.svg"),
+    (Path("scalable/places"), "folder-download.svg"),
+    (Path("scalable/places"), "folder-drag-accept.svg"),
+    (Path("scalable/places"), "folder-music.svg"),
+    (Path("scalable/places"), "folder-pictures.svg"),
+    (Path("scalable/places"), "folder-publicshare.svg"),
+    (Path("scalable/places"), "folder-remote.svg"),
+    (Path("scalable/places"), "folder-templates.svg"),
+    (Path("scalable/places"), "folder-videos.svg"),
+    (Path("scalable/places"), "user-bookmarks.svg"),
+    (Path("scalable/places"), "user-desktop.svg"),
+    (Path("scalable/places"), "user-home.svg"),
+    (Path("scalable/mimetypes"), "inode-directory.svg"),
+    (Path("scalable/status"), "folder-open.svg"),
+)
+GTK_CSS_VALIDATOR = """\
+import gi
+import sys
+gi.require_version("Gtk", sys.argv[1])
+from gi.repository import Gtk
+errors = []
+provider = Gtk.CssProvider()
+provider.connect("parsing-error", lambda _provider, _section, error: errors.append(str(error)))
+provider.load_from_path(sys.argv[2])
+if errors:
+    print("\\n".join(errors), file=sys.stderr)
+    raise SystemExit(1)
+"""
+
+GENERATED_FILES = (
+    (CONFIG_HOME / "gtk-3.0" / "matugen.css.new", CONFIG_HOME / "gtk-3.0" / "matugen.css", "css"),
+    (CONFIG_HOME / "gtk-4.0" / "matugen.css.new", CONFIG_HOME / "gtk-4.0" / "matugen.css", "css"),
+    (CONFIG_HOME / "ghostty" / "themes" / "matugen.new", CONFIG_HOME / "ghostty" / "themes" / "matugen", "ghostty"),
+    (CONFIG_HOME / "zed" / "themes" / "matugen.json.new", CONFIG_HOME / "zed" / "themes" / "matugen.json", "zed"),
+    (CONFIG_HOME / "btop" / "themes" / "matugen.theme.new", CONFIG_HOME / "btop" / "themes" / "matugen.theme", "btop"),
+    (CONFIG_HOME / "fastfetch" / "config.jsonc.new", CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
+    (
+        USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css.new",
+        USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css",
+        "css",
+    ),
+    (CONFIG_HOME / "AdwSteamGtk" / "custom.css.new", CONFIG_HOME / "AdwSteamGtk" / "custom.css", "css"),
+    (CACHE_HOME / "palette.json.new", CACHE_HOME / "palette.json", "palette"),
+) + tuple(
+    (
+        ICON_THEME_HOME / directory / f"{name}.new",
+        ICON_THEME_HOME / directory / name,
+        "svg",
+    )
+    for directory, name in ICON_OUTPUTS
+)
+
+GNOME_ACCENTS = {
+    "blue": "#3584e4",
+    "teal": "#2190a4",
+    "green": "#3a944a",
+    "yellow": "#c88800",
+    "orange": "#ed5b00",
+    "red": "#e62d42",
+    "pink": "#d56199",
+    "purple": "#9141ac",
+    "slate": "#6f8396",
+}
+
+
+def settings_if_available(schema_id: str) -> Gio.Settings | None:
+    source = Gio.SettingsSchemaSource.get_default()
+    if source is None or source.lookup(schema_id, True) is None:
+        return None
+    return Gio.Settings.new(schema_id)
+
+
+def decode_wallpaper_uri(uri: str) -> Path | None:
+    if not uri:
+        return None
+    parsed = urlparse(uri)
+    if parsed.scheme == "file":
+        return Path(unquote(parsed.path))
+    if not parsed.scheme:
+        return Path(unquote(uri))
+    return None
+
+
+def image_from_background_xml(path: Path) -> Path | None:
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError):
+        return None
+    for tag in ("file", "filename"):
+        for node in root.iter(tag):
+            if node.text:
+                candidate = Path(node.text.strip()).expanduser()
+                if candidate.is_file():
+                    return candidate
+    return None
+
+
+def file_signature(path: Path, mode: str, is_video: bool) -> str:
+    stat = path.stat()
+    return f"{mode}:{int(is_video)}:{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as stream:
+        value = json.load(stream)
+    if not isinstance(value, dict):
+        raise ValueError(f"Expected a JSON object in {path}")
+    return value
+
+
+def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
+    temporary = path.with_name(f"{path.name}.new")
+    with temporary.open("w", encoding="utf-8") as stream:
+        json.dump(value, stream, indent=2, sort_keys=True)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+    path.chmod(0o600)
+
+
+def write_text_atomic(path: Path, value: str) -> None:
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    temporary = path.with_name(f"{path.name}.matugen.new")
+    with temporary.open("w", encoding="utf-8") as stream:
+        stream.write(value)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+    path.chmod(mode)
+
+
+def helium_is_running() -> bool:
+    # Chromium creates these profile-local singleton entries before it writes
+    # Preferences. Do not race it or rewrite its large profile JSON while live.
+    return any(path.exists() or path.is_symlink() for path in HELIUM_SINGLETONS)
+
+
+def signed_argb(hex_color: str) -> int:
+    if HEX_COLOR.fullmatch(hex_color) is None:
+        raise ValueError(f"Invalid Helium theme color: {hex_color!r}")
+    value = 0xFF000000 | int(hex_color[1:], 16)
+    return value - 0x100000000 if value >= 0x80000000 else value
+
+
+def apply_helium_theme(palette: dict[str, Any]) -> bool:
+    """Update Helium's native Chromium custom-theme seed while it is closed."""
+    source = palette.get("source")
+    if not isinstance(source, str):
+        LOG.warning("Helium theme was not updated: Matugen has no source color")
+        return False
+    if not HELIUM_PREFERENCES.is_file():
+        LOG.debug("Helium profile is absent; skipping native browser theme")
+        return False
+    if helium_is_running():
+        LOG.debug("Helium is running; defer its native theme until the profile closes")
+        return False
+
+    try:
+        preferences = load_json(HELIUM_PREFERENCES)
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        LOG.warning("Could not read Helium preferences: %s", error)
+        return False
+
+    browser = preferences.setdefault("browser", {})
+    if not isinstance(browser, dict):
+        LOG.warning("Helium theme was not updated: browser preferences are malformed")
+        return False
+    theme = browser.setdefault("theme", {})
+    if not isinstance(theme, dict):
+        LOG.warning("Helium theme was not updated: browser theme preferences are malformed")
+        return False
+    extensions = preferences.setdefault("extensions", {})
+    if not isinstance(extensions, dict):
+        LOG.warning("Helium theme was not updated: extension preferences are malformed")
+        return False
+    extension_theme = extensions.setdefault("theme", {})
+    if not isinstance(extension_theme, dict):
+        LOG.warning("Helium theme was not updated: extension theme preferences are malformed")
+        return False
+
+    # Helium stores the Customize Chrome selection in these Chromium-native
+    # preferences. Explicitly select the custom-color variant as the user may
+    # have previously picked Helium's grayscale mode, which removes user_color2.
+    seed = signed_argb(source)
+    desired_theme = {
+        "color_scheme2": theme.get("color_scheme2", 0),
+        "color_variant2": 1,
+        "is_grayscale2": False,
+        "user_color2": seed,
+    }
+    changed = any(theme.get(key) != value for key, value in desired_theme.items())
+    changed = changed or extension_theme.get("id") != "user_color_theme_id"
+    if not changed:
+        return False
+
+    try:
+        if not HELIUM_BACKUP.exists():
+            HELIUM_BACKUP.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copy2(HELIUM_PREFERENCES, HELIUM_BACKUP)
+            HELIUM_BACKUP.chmod(0o600)
+        theme.update(desired_theme)
+        extension_theme["id"] = "user_color_theme_id"
+        write_text_atomic(HELIUM_PREFERENCES, json.dumps(preferences, ensure_ascii=False, separators=(",", ":")))
+    except OSError as error:
+        LOG.warning("Could not update Helium's native theme: %s", error)
+        return False
+    LOG.info("Updated Helium's native custom-theme seed to %s", source)
+    return True
+
+
+def nearest_gnome_accent(source_hex: str) -> str:
+    def hue_and_saturation(value: str) -> tuple[float, float]:
+        red, green, blue = (int(value[index : index + 2], 16) / 255 for index in (1, 3, 5))
+        hue, saturation, _ = colorsys.rgb_to_hsv(red, green, blue)
+        return hue, saturation
+
+    source_hue, source_saturation = hue_and_saturation(source_hex)
+    if source_saturation < 0.18:
+        return "slate"
+
+    def distance(candidate: tuple[str, str]) -> float:
+        _, value = candidate
+        candidate_hue, candidate_saturation = hue_and_saturation(value)
+        hue_delta = abs(source_hue - candidate_hue)
+        hue_delta = min(hue_delta, 1.0 - hue_delta)
+        return hue_delta + (abs(source_saturation - candidate_saturation) * 0.08)
+
+    candidates = ((name, value) for name, value in GNOME_ACCENTS.items() if name != "slate")
+    return min(candidates, key=distance)[0]
+
+
+class WallpaperPalette:
+    def __init__(self, *, reload_apps: bool = True) -> None:
+        self.background = Gio.Settings.new("org.gnome.desktop.background")
+        self.interface = Gio.Settings.new("org.gnome.desktop.interface")
+        self.shell = settings_if_available("org.gnome.shell")
+        self.user_theme = settings_if_available("org.gnome.shell.extensions.user-theme")
+        self.hanabi = settings_if_available(HANABI_SCHEMA)
+        self.adw_steam = settings_if_available("io.github.Foldex.AdwSteamGtk")
+        self.reload_apps = reload_apps
+        self._debounce_id = 0
+        self._helium_debounce_id = 0
+        self._helium_monitor: Gio.FileMonitor | None = None
+        self._loop: GLib.MainLoop | None = None
+
+    def mode(self) -> str:
+        color_scheme = self.interface.get_string("color-scheme")
+        if color_scheme == "prefer-dark":
+            return "dark"
+        if color_scheme == "prefer-light":
+            return "light"
+        gtk_theme = self.interface.get_string("gtk-theme").lower()
+        return "dark" if "dark" in gtk_theme else "light"
+
+    def live_wallpaper(self) -> Path | None:
+        if self.hanabi is None or self.shell is None:
+            return None
+        if HANABI_EXTENSION not in self.shell.get_strv("enabled-extensions"):
+            return None
+        candidate = Path(self.hanabi.get_string("video-path")).expanduser()
+        return candidate if candidate.is_file() else None
+
+    def active_wallpaper(self, override: Path | None = None) -> tuple[Path, bool]:
+        if override is not None:
+            candidate = override.expanduser().resolve()
+            if not candidate.is_file():
+                raise FileNotFoundError(f"Wallpaper does not exist: {candidate}")
+            return candidate, candidate.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov", ".avi"}
+
+        video = self.live_wallpaper()
+        if video is not None:
+            return video.resolve(), True
+
+        preferred_key = "picture-uri-dark" if self.mode() == "dark" else "picture-uri"
+        fallback_key = "picture-uri" if preferred_key == "picture-uri-dark" else "picture-uri-dark"
+        candidate = decode_wallpaper_uri(self.background.get_string(preferred_key))
+        if candidate is None or not candidate.is_file():
+            candidate = decode_wallpaper_uri(self.background.get_string(fallback_key))
+        if candidate is not None and candidate.suffix.lower() == ".xml":
+            candidate = image_from_background_xml(candidate)
+        if candidate is not None and candidate.is_file():
+            return candidate.resolve(), False
+
+        compatibility_fallback = CONFIG_HOME / "background"
+        if compatibility_fallback.is_file():
+            return compatibility_fallback.resolve(), False
+        raise FileNotFoundError("GNOME does not currently expose a readable image wallpaper")
+
+    def video_frame(self, video: Path) -> Path:
+        frame = CACHE_HOME / "live-wallpaper-frame.png"
+        metadata = CACHE_HOME / "live-wallpaper-frame.json"
+        stat = video.stat()
+        wanted = {"video": str(video.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+        if frame.is_file() and metadata.is_file():
+            try:
+                if load_json(metadata) == wanted:
+                    return frame
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
+
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise RuntimeError("Hanabi is active, but ffmpeg is unavailable for extracting a palette frame")
+        temporary = CACHE_HOME / "live-wallpaper-frame.new.png"
+        attempts = (
+            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-ss", "5", "-i", str(video), "-frames:v", "1", str(temporary)],
+            [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", str(video), "-frames:v", "1", str(temporary)],
+        )
+        for command in attempts:
+            temporary.unlink(missing_ok=True)
+            result = subprocess.run(command, capture_output=True, text=True, timeout=45, check=False)
+            if result.returncode == 0 and temporary.is_file() and temporary.stat().st_size > 0:
+                os.replace(temporary, frame)
+                frame.chmod(0o600)
+                write_json_atomic(metadata, wanted)
+                return frame
+        raise RuntimeError(f"Could not extract a frame from live wallpaper {video}")
+
+    def matugen_image(self, image: Path) -> Path:
+        if image.suffix.lower() != ".jxl":
+            return image
+
+        converted = CACHE_HOME / "jpeg-xl-wallpaper.png"
+        metadata = CACHE_HOME / "jpeg-xl-wallpaper.json"
+        stat = image.stat()
+        wanted = {
+            "image": str(image.resolve()),
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "max_dimension": 1024,
+        }
+        if converted.is_file() and metadata.is_file():
+            try:
+                if load_json(metadata) == wanted:
+                    return converted
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
+
+        temporary = CACHE_HOME / "jpeg-xl-wallpaper.new.png"
+        temporary.unlink(missing_ok=True)
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is not None:
+            command = [
+                ffmpeg,
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(image),
+                "-vf",
+                "scale=1024:1024:force_original_aspect_ratio=decrease",
+                "-frames:v",
+                "1",
+                "-pix_fmt",
+                "rgb24",
+                str(temporary),
+            ]
+        else:
+            imagemagick = shutil.which("magick")
+            if imagemagick is not None:
+                command = [
+                    imagemagick,
+                    str(image),
+                    "-auto-orient",
+                    "-resize",
+                    "1024x1024>",
+                    "-depth",
+                    "8",
+                    "-strip",
+                    str(temporary),
+                ]
+            else:
+                decoder = shutil.which("djxl")
+                if decoder is None:
+                    raise RuntimeError("JPEG XL wallpaper requires FFmpeg, ImageMagick, or djxl before Matugen can read it")
+                command = [
+                    decoder,
+                    str(image),
+                    str(temporary),
+                    "--quiet",
+                    "--downsampling=4",
+                    "--bits_per_sample=8",
+                ]
+
+        LOG.info("Decoding JPEG XL wallpaper for Matugen compatibility")
+        result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
+        if result.returncode != 0 or not temporary.is_file() or temporary.stat().st_size == 0:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError(f"Could not decode JPEG XL wallpaper {image}: {(result.stderr or result.stdout).strip()}")
+        os.replace(temporary, converted)
+        converted.chmod(0o600)
+        write_json_atomic(metadata, wanted)
+        return converted
+
+    def prepare_directories(self) -> None:
+        directories = {CACHE_HOME}
+        for temporary, final, _ in GENERATED_FILES:
+            directories.add(temporary.parent)
+            directories.add(final.parent)
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    def generate(self, palette_input: Path, mode: str) -> None:
+        if not MATUGEN.is_file():
+            raise FileNotFoundError(f"Matugen executable is missing: {MATUGEN}")
+        if not MATUGEN_CONFIG.is_file():
+            raise FileNotFoundError(f"Matugen configuration is missing: {MATUGEN_CONFIG}")
+        for temporary, _, _ in GENERATED_FILES:
+            temporary.unlink(missing_ok=True)
+
+        scheme = os.environ.get("MATUGEN_SCHEME", "scheme-tonal-spot")
+        command = [
+            str(MATUGEN),
+            "--config",
+            str(MATUGEN_CONFIG),
+            "--mode",
+            mode,
+            "--type",
+            scheme,
+            "--source-color-index",
+            "0",
+            "image",
+            str(palette_input),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
+        if result.returncode != 0:
+            details = (result.stderr or result.stdout).strip()
+            raise RuntimeError(f"Matugen failed with exit {result.returncode}: {details}")
+        if result.stderr.strip():
+            LOG.debug("Matugen: %s", result.stderr.strip())
+
+    def validate_generated(self) -> dict[str, Any]:
+        minimum_sizes = {
+            "css": 80,
+            "ghostty": 250,
+            "zed": 2_000,
+            "btop": 500,
+            "fastfetch": 400,
+            "palette": 100,
+            "svg": 500,
+        }
+        for temporary, _, kind in GENERATED_FILES:
+            if not temporary.is_file() or temporary.stat().st_size < minimum_sizes[kind]:
+                raise RuntimeError(f"Generated {kind} output is missing or too small: {temporary}")
+            text = temporary.read_text(encoding="utf-8")
+            if "{{" in text or "<*" in text:
+                raise RuntimeError(f"Unresolved Matugen expression in {temporary}")
+            if kind == "css" and text.count("{") != text.count("}"):
+                raise RuntimeError(f"Unbalanced CSS braces in {temporary}")
+            if kind == "ghostty" and text.count("palette = ") != 16:
+                raise RuntimeError(f"Incomplete Ghostty palette in {temporary}")
+            if kind == "btop" and "theme[process_end]" not in text:
+                raise RuntimeError(f"Incomplete btop palette in {temporary}")
+            if kind == "fastfetch":
+                try:
+                    fastfetch = json.loads(text)
+                except json.JSONDecodeError as error:
+                    raise RuntimeError(f"Generated Fastfetch configuration is not valid JSON: {temporary}: {error}") from error
+                display = fastfetch.get("display")
+                if not isinstance(display, dict) or not isinstance(display.get("color"), dict):
+                    raise RuntimeError("Generated Fastfetch configuration is missing display colors")
+                if not isinstance(fastfetch.get("logo"), dict):
+                    raise RuntimeError("Generated Fastfetch configuration is missing logo colors")
+                if not isinstance(fastfetch.get("modules"), list) or not fastfetch["modules"]:
+                    raise RuntimeError("Generated Fastfetch configuration is missing its module list")
+            if kind == "svg":
+                try:
+                    root = ET.fromstring(text)
+                except ET.ParseError as error:
+                    raise RuntimeError(f"Generated folder icon is not valid XML: {temporary}: {error}") from error
+                if not root.tag.endswith("svg"):
+                    raise RuntimeError(f"Generated folder icon has no SVG root: {temporary}")
+                remaining_blues = ADWAITA_FOLDER_BLUES.intersection(HEX_COLOR.findall(text.lower()))
+                if remaining_blues:
+                    raise RuntimeError(f"Generated folder icon still contains Adwaita blue {sorted(remaining_blues)}: {temporary}")
+
+        zed_temporary = CONFIG_HOME / "zed" / "themes" / "matugen.json.new"
+        zed = load_json(zed_temporary)
+        names = {theme.get("name") for theme in zed.get("themes", []) if isinstance(theme, dict)}
+        if names != {"Matugen Dark", "Matugen Light"}:
+            raise RuntimeError("Generated Zed theme does not contain both expected modes")
+
+        for version, path in (
+            ("3.0", CONFIG_HOME / "gtk-3.0" / "matugen.css.new"),
+            ("4.0", CONFIG_HOME / "gtk-4.0" / "matugen.css.new"),
+        ):
+            result = subprocess.run(
+                [sys.executable, "-c", GTK_CSS_VALIDATOR, version, str(path)],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"GTK {version} rejected {path}: {result.stderr.strip()}")
+
+        palette = load_json(CACHE_HOME / "palette.json.new")
+        required = {
+            "source",
+            "primary",
+            "on_primary",
+            "primary_container",
+            "on_primary_container",
+            "secondary",
+            "tertiary",
+            "surface",
+            "surface_container",
+            "on_surface",
+            "outline",
+            "error",
+        }
+        if not required.issubset(palette):
+            raise RuntimeError("Generated palette state is missing required colors")
+        if any(not isinstance(palette[key], str) or HEX_COLOR.fullmatch(palette[key]) is None for key in required):
+            raise RuntimeError("Generated palette state contains an invalid color")
+        return palette
+
+    def commit_generated(self) -> None:
+        for temporary, final, _ in GENERATED_FILES:
+            os.replace(temporary, final)
+            final.chmod(0o600)
+
+    def apply_gnome_colors(self, palette: dict[str, Any]) -> str:
+        accent = nearest_gnome_accent(str(palette["source"]))
+        if self.interface.get_string("accent-color") != accent:
+            self.interface.set_string("accent-color", accent)
+        if self.interface.get_string("icon-theme") == "Matugen":
+            # Folder SVGs keep the same names across generations. Emit a real
+            # icon-theme setting change so Nautilus and other GTK processes
+            # discard cached paintables after the atomic replacements.
+            self.interface.set_string("icon-theme", "Adwaita")
+            Gio.Settings.sync()
+            time.sleep(0.08)
+        self.interface.set_string("icon-theme", "Matugen")
+        if self.user_theme is not None:
+            if self.user_theme.get_string("name") == "Matugen":
+                self.user_theme.set_string("name", "")
+                Gio.Settings.sync()
+            self.user_theme.set_string("name", "Matugen")
+        Gio.Settings.sync()
+        return accent
+
+    def reload_gtk(self) -> None:
+        gtk_theme = self.interface.get_string("gtk-theme")
+        if gtk_theme:
+            self.interface.set_string("gtk-theme", "")
+            Gio.Settings.sync()
+            time.sleep(0.08)
+            self.interface.set_string("gtk-theme", gtk_theme)
+            Gio.Settings.sync()
+        color_scheme = self.interface.get_string("color-scheme")
+        temporary_scheme = "prefer-light" if color_scheme == "prefer-dark" else "prefer-dark"
+        self.interface.set_string("color-scheme", temporary_scheme)
+        Gio.Settings.sync()
+        time.sleep(0.08)
+        self.interface.set_string("color-scheme", color_scheme)
+        Gio.Settings.sync()
+
+    def signal_reloadable_apps(self) -> None:
+        user_id = str(os.geteuid())
+        for process, signal_name in (("ghostty", "USR2"), ("btop", "USR2")):
+            subprocess.run(
+                ["pkill", f"-{signal_name}", "-u", user_id, "-x", process],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+
+    def install_steam_css(self) -> None:
+        if os.environ.get("MATUGEN_SKIP_STEAM") == "1":
+            return
+        if self.adw_steam is None or not self.adw_steam.get_boolean("prefs-install-custom-css"):
+            return
+        installer = shutil.which("adwaita-steam-gtk")
+        if installer is None:
+            return
+        extracted = USER_HOME / ".cache" / "AdwSteamInstaller" / "extracted"
+        local_installer = extracted / "install.py"
+        command = [installer, "--install"]
+        working_directory: Path | None = None
+
+        # After the first AdwSteamGtk install, avoid its network update check on
+        # every wallpaper change and rerun the already-cached skin installer.
+        if local_installer.is_file():
+            custom_destination = extracted / "custom" / "custom.css"
+            custom_destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(CONFIG_HOME / "AdwSteamGtk" / "custom.css", custom_destination)
+            try:
+                package_root = Path("/usr/share/adwaita-steam-gtk")
+                if str(package_root) not in sys.path:
+                    sys.path.insert(1, str(package_root))
+                from adwaita_steam_gtk import cli as adw_cli
+                from adwaita_steam_gtk import install as adw_install
+
+                command = shlex.split(adw_install.gen_cmd_line(adw_cli.get_options(None), False))
+            except Exception:
+                LOG.exception("Could not load AdwSteamGtk options; using its default local install")
+                command = [sys.executable, "install.py", "--custom-css"]
+            working_directory = extracted
+        try:
+            result = subprocess.run(
+                command,
+                cwd=working_directory,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            LOG.warning("AdwSteamGtk install timed out; Steam will use the palette after its next successful skin install")
+            return
+        if result.returncode != 0:
+            LOG.warning("AdwSteamGtk could not refresh Steam CSS: %s", (result.stderr or result.stdout).strip())
+
+    def reload_everything(self) -> None:
+        self.reload_gtk()
+        self.signal_reloadable_apps()
+        self.install_steam_css()
+
+    def apply(self, *, force: bool = False, override: Path | None = None) -> bool:
+        self.prepare_directories()
+        with LOCK_FILE.open("a+", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            source, is_video = self.active_wallpaper(override)
+            mode = self.mode()
+            signature_value = file_signature(source, mode, is_video)
+            if not force and WATCH_STATE.is_file():
+                try:
+                    if load_json(WATCH_STATE).get("signature") == signature_value:
+                        return False
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass
+
+            palette_input = self.video_frame(source) if is_video else self.matugen_image(source)
+            LOG.info("Generating %s palette from %s", mode, source)
+            self.generate(palette_input, mode)
+            palette = self.validate_generated()
+            self.commit_generated()
+            accent = self.apply_gnome_colors(palette)
+            apply_helium_theme(palette)
+            write_json_atomic(
+                WATCH_STATE,
+                {
+                    "accent": accent,
+                    "image": str(source),
+                    "mode": mode,
+                    "palette_input": str(palette_input),
+                    "signature": signature_value,
+                    "source_color": palette["source"],
+                    "updated_at": int(time.time()),
+                },
+            )
+            if self.reload_apps:
+                self.reload_everything()
+            LOG.info("Applied source %s with GNOME accent %s", palette["source"], accent)
+            return True
+
+    def schedule(self, *_args: Any) -> None:
+        if self._debounce_id:
+            GLib.source_remove(self._debounce_id)
+        self._debounce_id = GLib.timeout_add(450, self.apply_debounced)
+
+    def apply_debounced(self) -> bool:
+        self._debounce_id = 0
+        try:
+            self.apply(force=False)
+        except Exception:
+            LOG.exception("Wallpaper palette update failed")
+        return GLib.SOURCE_REMOVE
+
+    def schedule_helium_sync(self, *_args: Any) -> None:
+        """Apply a deferred browser theme just after Helium releases its profile."""
+        if self._helium_debounce_id:
+            GLib.source_remove(self._helium_debounce_id)
+        self._helium_debounce_id = GLib.timeout_add(700, self.sync_helium_debounced)
+
+    def sync_helium_debounced(self) -> bool:
+        self._helium_debounce_id = 0
+        try:
+            palette = load_json(CACHE_HOME / "palette.json")
+            apply_helium_theme(palette)
+        except (OSError, ValueError, json.JSONDecodeError):
+            LOG.exception("Deferred Helium theme synchronization failed")
+        return GLib.SOURCE_REMOVE
+
+    def stop(self) -> bool:
+        if self._loop is not None:
+            self._loop.quit()
+        return GLib.SOURCE_REMOVE
+
+    def watch(self) -> None:
+        self.background.connect("changed::picture-uri", self.schedule)
+        self.background.connect("changed::picture-uri-dark", self.schedule)
+        self.interface.connect("changed::color-scheme", self.schedule)
+        if self.shell is not None:
+            self.shell.connect("changed::enabled-extensions", self.schedule)
+        if self.hanabi is not None:
+            self.hanabi.connect("changed::video-path", self.schedule)
+
+        try:
+            self._helium_monitor = Gio.File.new_for_path(str(HELIUM_CONFIG_HOME)).monitor_directory(
+                Gio.FileMonitorFlags.NONE,
+                None,
+            )
+            self._helium_monitor.connect("changed", self.schedule_helium_sync)
+        except GLib.Error as error:
+            LOG.warning("Could not monitor Helium's profile for deferred theming: %s", error)
+
+        self.apply(force=True)
+
+        self._loop = GLib.MainLoop()
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, self.stop)
+        GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, self.stop)
+        LOG.info("Watching GNOME wallpaper and appearance settings")
+        self._loop.run()
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("image", nargs="?", type=Path, help="optional image or video to use for a one-shot palette")
+    parser.add_argument("--watch", action="store_true", help="watch GNOME settings and keep the palette synchronized")
+    parser.add_argument("--no-reload", action="store_true", help="generate files without asking running apps to reload")
+    parser.add_argument("--status", action="store_true", help="print the last successful wallpaper palette state")
+    parser.add_argument(
+        "--sync-helium",
+        action="store_true",
+        help="apply the cached Matugen source color to Helium before launching it",
+    )
+    parser.add_argument("--verbose", action="store_true", help="enable debug logging")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    if args.status:
+        if not WATCH_STATE.is_file():
+            print("No Matugen wallpaper palette has been applied yet.", file=sys.stderr)
+            return 1
+        print(WATCH_STATE.read_text(encoding="utf-8"), end="")
+        return 0
+    if args.sync_helium:
+        palette_path = CACHE_HOME / "palette.json"
+        try:
+            apply_helium_theme(load_json(palette_path))
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            LOG.error("Could not synchronize Helium's native theme: %s", error)
+            return 1
+        return 0
+    if args.watch and args.image is not None:
+        print("An explicit image cannot be combined with --watch.", file=sys.stderr)
+        return 2
+
+    palette = WallpaperPalette(reload_apps=not args.no_reload)
+    if args.watch:
+        palette.watch()
+        return 0
+    try:
+        palette.apply(force=True, override=args.image)
+    except Exception:
+        LOG.exception("Wallpaper palette update failed")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

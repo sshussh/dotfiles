@@ -1,0 +1,18 @@
+[Unit]
+Description=Synchronize system colors with the GNOME wallpaper using Matugen
+Documentation=https://github.com/InioX/matugen
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/matugen-wallpaper --watch
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=5s
+UMask=0077
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+
+[Install]
+WantedBy=graphical-session.target
+

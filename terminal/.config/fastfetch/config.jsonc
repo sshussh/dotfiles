@@ -1,0 +1,88 @@
+{
+  "logo": {
+    "color": {
+      "1": "#c9bfff",
+      "2": "#473f77",
+      "3": "#c9c3dc",
+      "4": "#edb8cd",
+      "5": "#e5deff",
+      "6": "#e5dff9",
+      "7": "#ffd8e6",
+      "8": "#c9bfff",
+      "9": "#c9c5d0"
+    }
+  },
+  "display": {
+    "separator": "  ·  ",
+    "color": {
+      "keys": "#c9bfff",
+      "title": "#c9c3dc",
+      "output": "#e5e1e9",
+      "separator": "#938f99"
+    },
+    "bar": {
+      "color": {
+        "elapsed": "#c9bfff",
+        "total": "#35343a",
+        "border": "#938f99"
+      }
+    },
+    "percent": {
+      "color": {
+        "green": "#8ed5b0",
+        "yellow": "#b3d089",
+        "red": "#ffb4ab"
+      }
+    },
+    "temp": {
+      "color": {
+        "green": "#8ed5b0",
+        "yellow": "#b3d089",
+        "red": "#ffb4ab"
+      }
+    }
+  },
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    "host",
+    {
+      "type": "kernel",
+      "format": "{release}"
+    },
+    "uptime",
+    {
+      "type": "packages",
+      "combined": true
+    },
+    "shell",
+    {
+      "type": "display",
+      "compactType": "original",
+      "key": "Resolution"
+    },
+    "de",
+    "wm",
+    "wmtheme",
+    "theme",
+    "icons",
+    "terminal",
+    {
+      "type": "terminalfont",
+      "format": "{/name}{-}{/}{name}{?size} {size}{?}"
+    },
+    "cpu",
+    {
+      "type": "gpu",
+      "key": "GPU",
+      "format": "{name}"
+    },
+    {
+      "type": "memory",
+      "format": "{used} / {total}"
+    },
+    "break",
+    "colors"
+  ]
+}

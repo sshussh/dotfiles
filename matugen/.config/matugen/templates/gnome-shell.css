@@ -1,0 +1,104 @@
+/* Generated for GNOME Shell 50 by Matugen. The built-in theme remains the base. */
+
+#panel {
+  background-color: {{colors.surface.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+}
+
+#panel .panel-button {
+  color: {{colors.on_surface.default.hex}};
+}
+
+#panel .panel-button:focus,
+#panel .panel-button:hover {
+  background-color: {{colors.surface_container_high.default.hex}};
+  box-shadow: none;
+}
+
+#panel .panel-button:active,
+#panel .panel-button:checked {
+  background-color: {{colors.primary_container.default.hex}};
+  color: {{colors.on_primary_container.default.hex}};
+  box-shadow: none;
+}
+
+#panel .panel-button#panelActivities .workspace-dot,
+#dash .dash-item-container .app-grid-running-dot {
+  background-color: {{colors.primary.default.hex}};
+}
+
+.popup-menu-content,
+.candidate-popup-content,
+.quick-settings,
+.quick-toggle-menu,
+.calendar,
+.message,
+.events-button,
+.datemenu-today-button,
+.modal-dialog,
+.notification-banner,
+.search-section-content,
+#dash .dash-background {
+  background-color: {{colors.surface_container.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+  border-color: {{colors.outline_variant.default.hex}};
+}
+
+.popup-menu-item,
+.popup-inactive-menu-item {
+  color: {{colors.on_surface.default.hex}};
+}
+
+.popup-menu-item:hover,
+.popup-menu-item:selected,
+.popup-menu-item:checked,
+.popup-menu-item:active {
+  background-color: {{colors.surface_container_highest.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+}
+
+.quick-toggle,
+.quick-toggle-has-menu,
+.quick-toggle-has-menu .quick-toggle-menu-button,
+.quick-slider .slider-bin {
+  background-color: {{colors.surface_container_high.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+}
+
+.quick-toggle:checked,
+.quick-toggle-has-menu:checked,
+.quick-toggle-has-menu .quick-toggle:checked,
+.quick-toggle-has-menu .quick-toggle-menu-button:checked {
+  background-color: {{colors.primary.default.hex}};
+  color: {{colors.on_primary.default.hex}};
+}
+
+.search-entry {
+  background-color: {{colors.surface_container_high.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+  border: 2px solid {{colors.outline_variant.default.hex}};
+}
+
+.search-entry:focus {
+  border-color: {{colors.primary.default.hex}};
+  box-shadow: inset 0 0 0 1px {{colors.primary.default.hex}};
+}
+
+.calendar .calendar-day.calendar-today,
+.calendar .calendar-month-header .calendar-month-label,
+.workspace-thumbnail-indicator {
+  border-color: {{colors.primary.default.hex}};
+  color: {{colors.primary.default.hex}};
+}
+
+.message-list-controls,
+.world-clocks-button .world-clocks-timezone,
+.events-button .event-time {
+  color: {{colors.on_surface_variant.default.hex}};
+}
+
+.workspace-thumbnails .workspace-thumbnail {
+  background-color: {{colors.surface_container_high.default.hex}};
+  color: {{colors.on_surface.default.hex}};
+}
+

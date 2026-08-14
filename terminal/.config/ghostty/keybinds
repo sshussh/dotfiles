@@ -1,0 +1,83 @@
+# Keybinds + command palette extras
+# Loaded via config-file from main config (overrides earlier keybinds).
+#
+# Built-in defaults we intentionally keep:
+#   ctrl+shift+t / w     new / close tab
+#   ctrl+shift+o / e     split right / down
+#   ctrl+alt+arrows      focus split
+#   super+ctrl+shift+arrows  resize split
+#   ctrl+shift+enter     zoom split
+#   ctrl+shift+f         search
+#   ctrl+shift+p         command palette
+#   ctrl+shift+,         reload config
+#   ctrl+,               open config
+#   ctrl+shift+i         inspector
+#   alt+1..8             goto tab
+
+# -----------------------------------------------------------------------------
+# Direct keybinds
+# -----------------------------------------------------------------------------
+
+# Vim-style split focus (arrows still work)
+keybind = ctrl+alt+h=goto_split:left
+keybind = ctrl+alt+j=goto_split:down
+keybind = ctrl+alt+k=goto_split:up
+keybind = ctrl+alt+l=goto_split:right
+
+keybind = ctrl+shift+equal=equalize_splits
+
+# Jump between shell prompts in scrollback
+keybind = ctrl+shift+up=jump_to_prompt:-1
+keybind = ctrl+shift+down=jump_to_prompt:1
+
+# Tab reordering
+keybind = ctrl+shift+page_up=move_tab:-1
+keybind = ctrl+shift+page_down=move_tab:1
+
+# Tab overview (ctrl+shift+o stays split-right)
+keybind = ctrl+shift+space=toggle_tab_overview
+
+# Clear + export
+keybind = ctrl+shift+k=clear_screen
+keybind = ctrl+shift+s=write_scrollback_file:open
+keybind = ctrl+shift+u=write_screen_file:open
+
+# Rescue selection when a TUI steals the mouse
+keybind = ctrl+shift+m=toggle_mouse_reporting
+
+# Float reference terminal above other windows
+keybind = ctrl+shift+alt+f=toggle_window_float_on_top
+
+# -----------------------------------------------------------------------------
+# Leader sequences (ctrl+a then key) — tmux-like, one-shot style via sequences
+# -----------------------------------------------------------------------------
+keybind = ctrl+a>h=goto_split:left
+keybind = ctrl+a>j=goto_split:down
+keybind = ctrl+a>k=goto_split:up
+keybind = ctrl+a>l=goto_split:right
+keybind = ctrl+a>v=new_split:right
+keybind = ctrl+a>s=new_split:down
+keybind = ctrl+a>z=toggle_split_zoom
+keybind = ctrl+a>equal=equalize_splits
+keybind = ctrl+a>t=new_tab
+keybind = ctrl+a>w=close_tab:this
+keybind = ctrl+a>f=toggle_window_float_on_top
+keybind = ctrl+a>m=toggle_mouse_reporting
+keybind = ctrl+a>c=clear_screen
+keybind = ctrl+a>o=toggle_tab_overview
+# Literal ctrl+a to the shell if you double-tap
+keybind = ctrl+a>ctrl+a=text:\x01
+
+# -----------------------------------------------------------------------------
+# Command palette extras (ctrl+shift+p) — easy discovery
+# -----------------------------------------------------------------------------
+# Note: write_scrollback_file / write_screen_file cannot be custom palette
+# actions in Ghostty 1.3 (validation rejects them). Use keybinds instead:
+#   ctrl+shift+s / ctrl+shift+u
+command-palette-entry = title:"Equalize Splits",description:"Make all splits the same size.",action:"equalize_splits"
+command-palette-entry = title:"Zoom Split",description:"Toggle zoom on the focused split.",action:"toggle_split_zoom"
+command-palette-entry = title:"Toggle Mouse Reporting",description:"Disable app mouse capture so you can select text.",action:"toggle_mouse_reporting"
+command-palette-entry = title:"Float on Top",description:"Keep this window above others.",action:"toggle_window_float_on_top"
+command-palette-entry = title:"Tab Overview",description:"Show the tab overview.",action:"toggle_tab_overview"
+command-palette-entry = title:"Jump to Previous Prompt",description:"Scroll to the previous shell prompt.",action:"jump_to_prompt:-1"
+command-palette-entry = title:"Jump to Next Prompt",description:"Scroll to the next shell prompt.",action:"jump_to_prompt:1"

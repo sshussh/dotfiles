@@ -1,0 +1,98 @@
+# --- listing -----------------------------------------------------------------
+alias ls='lsd --color=always --group-directories-first'
+alias ll='lsd -latrh --color=always --group-directories-first'
+alias la='lsd -la --color=always --group-directories-first'
+alias lt='lsd --tree --depth 2 --color=always --group-directories-first'
+alias lta='lsd --tree --depth 3 --color=always --icon=always --group-directories-first'
+alias l='lsd -l --color=always --group-directories-first'
+alias lS='lsd -lS --color=always --group-directories-first'
+alias lT='lsd -lt --color=always --group-directories-first'
+
+# --- core ergonomics ---------------------------------------------------------
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias cls='clear'
+alias c='clear'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+alias -- -='cd -'
+alias d='dirs -v'
+for index ({1..9}) alias "$index"="cd +${index}"; unset index
+
+# --- modern tools ------------------------------------------------------------
+alias cat='bat --paging=never --style=plain'
+alias catt='bat --style=numbers,changes,header'
+alias batp='bat --paging=always'
+alias diff='diff --color=auto'
+alias ip='ip -color=auto'
+alias rg='rg --smart-case --hidden --glob "!.git"'
+
+# --- git shortcuts (complement OMZ git plugin) -------------------------------
+alias gs='git status -sb'
+alias gss='git status'
+alias gd='git diff'
+alias gds='git diff --staged'
+alias gdw='git diff --word-diff'
+alias gl='git log --oneline --graph --decorate -20'
+alias gll='git log --oneline --graph --decorate --all -40'
+alias glg='git log --graph --pretty=format:"%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset" --abbrev-commit'
+alias gp='git push'
+alias gpl='git pull --rebase'
+alias gc='git commit'
+alias gcm='git commit -m'
+alias gca='git commit --amend --no-edit'
+alias ga='git add'
+alias gaa='git add -A'
+alias gb='git branch -vv'
+alias gco='git checkout'
+alias gcb='git checkout -b'
+alias gst='git stash'
+alias gstp='git stash pop'
+alias gundo='git reset --soft HEAD~1'
+alias lg='lazygit'
+
+# --- system / fun ------------------------------------------------------------
+# 3D spinning Arch (stock areofyl/fetch) — blue logo via ~/.config/fetch/logo.txt
+# Static Vesper stats: ffs / fastfetch
+alias neofetch='fetch'
+alias ff='fetch'
+alias ffl='fetch --infinite'
+alias ffs='fastfetch'
+
+alias weather='curl -s "https://wttr.in/amman?format=v2"'
+alias weather-short='curl -s "https://wttr.in/amman?format=3"'
+alias editor='zeditor'
+alias e='zeditor'
+alias paths='print -l $path'
+alias reload='source $ZDOTDIR/.zshrc && print -P "%F{green}✓ reloaded%f $ZDOTDIR/.zshrc"'
+alias zshconfig='${EDITOR:-zeditor} $ZDOTDIR'
+alias path='echo $PATH | tr ":" "\n"'
+alias ports='ss -tulpn'
+alias myip='curl -s ifconfig.me; echo'
+alias disk='df -h --total 2>/dev/null | grep -E "Filesystem|total|/$" || df -h'
+alias mem='free -h'
+alias top='btop 2>/dev/null || htop 2>/dev/null || command top'
+
+# --- safety ------------------------------------------------------------------
+alias rm='rm -I --preserve-root'
+alias cp='cp -i'
+alias mv='mv -i'
+alias mkdir='mkdir -p'
+alias df='df -h'
+alias du='du -h'
+
+# --- pacman / arch -----------------------------------------------------------
+alias pac='sudo pacman -S'
+alias pacu='sudo pacman -Syu'
+alias pacr='sudo pacman -Rns'
+alias pacs='pacman -Ss'
+alias pacq='pacman -Qs'
+alias pacorph='pacman -Qtdq'
+
+# --- tldr / help -------------------------------------------------------------
+if command -v tldr >/dev/null 2>&1; then
+  alias help='tldr'
+fi

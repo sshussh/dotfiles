@@ -1,0 +1,8 @@
+# Soft translucent background (default include from main config).
+# To go fully opaque: in config, change
+#   config-file = opacity-soft
+# to
+#   config-file = opacity-solid
+# then reload (ctrl+shift+,).
+
+background-opacity = 0.88

@@ -1,0 +1,11 @@
+# Never version VCS metadata, history, caches, credentials, databases, or logs.
+**/.git/
+**/*history*
+**/*.db
+**/*.sqlite*
+**/*.log
+**/*token*
+**/*secret*
+**/*credential*
+**/*cache*
+**/*lock*

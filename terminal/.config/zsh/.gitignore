@@ -1,0 +1,6 @@
+.zcompdump
+.zcompdump-*
+.zsh_history
+.zshrc.local
+.zshenv.local
+*.zwc
