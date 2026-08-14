@@ -1,0 +1,104 @@
+/* Generated for GNOME Shell 50 by Matugen. The built-in theme remains the base. */
+
+#panel {
+  background-color: #141318;
+  color: #e5e1e9;
+}
+
+#panel .panel-button {
+  color: #e5e1e9;
+}
+
+#panel .panel-button:focus,
+#panel .panel-button:hover {
+  background-color: #2b292f;
+  box-shadow: none;
+}
+
+#panel .panel-button:active,
+#panel .panel-button:checked {
+  background-color: #473f77;
+  color: #e5deff;
+  box-shadow: none;
+}
+
+#panel .panel-button#panelActivities .workspace-dot,
+#dash .dash-item-container .app-grid-running-dot {
+  background-color: #c9bfff;
+}
+
+.popup-menu-content,
+.candidate-popup-content,
+.quick-settings,
+.quick-toggle-menu,
+.calendar,
+.message,
+.events-button,
+.datemenu-today-button,
+.modal-dialog,
+.notification-banner,
+.search-section-content,
+#dash .dash-background {
+  background-color: #201f25;
+  color: #e5e1e9;
+  border-color: #48454e;
+}
+
+.popup-menu-item,
+.popup-inactive-menu-item {
+  color: #e5e1e9;
+}
+
+.popup-menu-item:hover,
+.popup-menu-item:selected,
+.popup-menu-item:checked,
+.popup-menu-item:active {
+  background-color: #35343a;
+  color: #e5e1e9;
+}
+
+.quick-toggle,
+.quick-toggle-has-menu,
+.quick-toggle-has-menu .quick-toggle-menu-button,
+.quick-slider .slider-bin {
+  background-color: #2b292f;
+  color: #e5e1e9;
+}
+
+.quick-toggle:checked,
+.quick-toggle-has-menu:checked,
+.quick-toggle-has-menu .quick-toggle:checked,
+.quick-toggle-has-menu .quick-toggle-menu-button:checked {
+  background-color: #c9bfff;
+  color: #30285f;
+}
+
+.search-entry {
+  background-color: #2b292f;
+  color: #e5e1e9;
+  border: 2px solid #48454e;
+}
+
+.search-entry:focus {
+  border-color: #c9bfff;
+  box-shadow: inset 0 0 0 1px #c9bfff;
+}
+
+.calendar .calendar-day.calendar-today,
+.calendar .calendar-month-header .calendar-month-label,
+.workspace-thumbnail-indicator {
+  border-color: #c9bfff;
+  color: #c9bfff;
+}
+
+.message-list-controls,
+.world-clocks-button .world-clocks-timezone,
+.events-button .event-time {
+  color: #c9c5d0;
+}
+
+.workspace-thumbnails .workspace-thumbnail {
+  background-color: #2b292f;
+  color: #e5e1e9;
+}
+

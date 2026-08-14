@@ -1,0 +1,135 @@
+[config]
+version_check = false
+caching = true
+contrast = 0.0
+fallback_color = '#6750a4'
+prefer = 'closest-to-fallback'
+source_color_index = 0
+
+[config.custom_colors]
+red = { color = '#ff5555', blend = true }
+green = { color = '#50fa7b', blend = true }
+yellow = { color = '#f1fa8c', blend = true }
+blue = { color = '#8be9fd', blend = true }
+magenta = { color = '#ff79c6', blend = true }
+cyan = { color = '#8be9fd', blend = true }
+
+[templates.palette-state]
+input_path = '~/.config/matugen/templates/palette-state.json'
+output_path = '~/.cache/matugen/palette.json.new'
+index = 10
+
+[templates.gtk3]
+input_path = '~/.config/matugen/templates/gtk-colors.css'
+output_path = '~/.config/gtk-3.0/matugen.css.new'
+index = 20
+
+[templates.gtk4]
+input_path = '~/.config/matugen/templates/gtk-colors.css'
+output_path = '~/.config/gtk-4.0/matugen.css.new'
+index = 21
+
+[templates.ghostty]
+input_path = '~/.config/matugen/templates/ghostty.conf'
+output_path = '~/.config/ghostty/themes/matugen.new'
+index = 30
+
+[templates.zed]
+input_path = '~/.config/matugen/templates/zed.json'
+output_path = '~/.config/zed/themes/matugen.json.new'
+index = 40
+
+[templates.btop]
+input_path = '~/.config/matugen/templates/btop.theme'
+output_path = '~/.config/btop/themes/matugen.theme.new'
+index = 50
+
+[templates.fastfetch]
+input_path = '~/.config/matugen/templates/fastfetch.jsonc'
+output_path = '~/.config/fastfetch/config.jsonc.new'
+index = 55
+
+[templates.gnome-shell]
+input_path = '~/.config/matugen/templates/gnome-shell.css'
+output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css.new'
+index = 60
+
+[templates.adw-steam-gtk]
+input_path = '~/.config/matugen/templates/adw-steam-gtk.css'
+output_path = '~/.config/AdwSteamGtk/custom.css.new'
+index = 70
+
+[templates.icon-folder]
+input_path = '~/.config/matugen/templates/icons/places/folder.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder.svg.new'
+index = 100
+
+[templates.icon-folder-documents]
+input_path = '~/.config/matugen/templates/icons/places/folder-documents.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-documents.svg.new'
+index = 101
+
+[templates.icon-folder-download]
+input_path = '~/.config/matugen/templates/icons/places/folder-download.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-download.svg.new'
+index = 102
+
+[templates.icon-folder-drag-accept]
+input_path = '~/.config/matugen/templates/icons/places/folder-drag-accept.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-drag-accept.svg.new'
+index = 103
+
+[templates.icon-folder-music]
+input_path = '~/.config/matugen/templates/icons/places/folder-music.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-music.svg.new'
+index = 104
+
+[templates.icon-folder-pictures]
+input_path = '~/.config/matugen/templates/icons/places/folder-pictures.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-pictures.svg.new'
+index = 105
+
+[templates.icon-folder-publicshare]
+input_path = '~/.config/matugen/templates/icons/places/folder-publicshare.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-publicshare.svg.new'
+index = 106
+
+[templates.icon-folder-remote]
+input_path = '~/.config/matugen/templates/icons/places/folder-remote.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-remote.svg.new'
+index = 107
+
+[templates.icon-folder-templates]
+input_path = '~/.config/matugen/templates/icons/places/folder-templates.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-templates.svg.new'
+index = 108
+
+[templates.icon-folder-videos]
+input_path = '~/.config/matugen/templates/icons/places/folder-videos.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-videos.svg.new'
+index = 109
+
+[templates.icon-user-bookmarks]
+input_path = '~/.config/matugen/templates/icons/places/user-bookmarks.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-bookmarks.svg.new'
+index = 110
+
+[templates.icon-user-desktop]
+input_path = '~/.config/matugen/templates/icons/places/user-desktop.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-desktop.svg.new'
+index = 111
+
+[templates.icon-user-home]
+input_path = '~/.config/matugen/templates/icons/places/user-home.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-home.svg.new'
+index = 112
+
+[templates.icon-inode-directory]
+input_path = '~/.config/matugen/templates/icons/mimetypes/inode-directory.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/mimetypes/inode-directory.svg.new'
+index = 113
+
+[templates.icon-folder-open]
+input_path = '~/.config/matugen/templates/icons/places/folder.svg'
+output_path = '~/.local/share/icons/Matugen/scalable/status/folder-open.svg.new'
+index = 114

@@ -1,0 +1,113 @@
+export ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
+
+# download zinit if not available
+if [ ! -d "$ZINIT_HOME" ]; then
+  mkdir -p "$(dirname $ZINIT_HOME)"
+  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+fi
+
+source "${ZINIT_HOME}/zinit.zsh"
+
+# OMZ snippets — defer (not needed for first keystroke)
+zinit wait lucid for \
+  OMZL::git.zsh \
+  OMZP::git \
+  OMZP::sudo \
+  OMZP::archlinux \
+  OMZP::command-not-found
+
+# Core plugins — load order matters for ZLE wrappers
+zinit light zsh-users/zsh-completions
+zinit light zsh-users/zsh-autosuggestions
+zinit light Aloxaf/fzf-tab
+# syntax highlighting MUST be last among ZLE-wrapping plugins
+zinit light zsh-users/zsh-syntax-highlighting
+
+# Completions
+autoload -Uz compinit
+compinit -d "${ZDOTDIR:-$HOME}/.zcompdump"
+zinit cdreplay -q
+
+# completion styling
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' menu no
+zstyle ':completion:*:descriptions' format '[%d]'
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*' verbose yes
+zstyle ':fzf-tab:*' fzf-flags --height=60% --border=rounded
+zstyle ':fzf-tab:*' switch-group ',' '.'
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'lsd --color=always --icon=always $realpath 2>/dev/null || ls --color $realpath'
+zstyle ':fzf-tab:complete:__zoxide_z:*' fzf-preview 'lsd --color=always --icon=always $realpath 2>/dev/null || ls --color $realpath'
+zstyle ':fzf-tab:complete:ls:*' fzf-preview 'lsd --color=always --icon=always $realpath 2>/dev/null || ls --color $realpath'
+zstyle ':fzf-tab:complete:systemctl-*:*' fzf-preview 'SYSTEMD_COLORS=1 systemctl status $word'
+zstyle ':fzf-tab:complete:git-(add|diff|restore):*' fzf-preview \
+  'git diff --color=always $realpath 2>/dev/null | head -200'
+zstyle ':fzf-tab:complete:git-checkout:*' fzf-preview \
+  'case "$group" in
+    "modified file") git diff --color=always $word ;;
+    "recent commit object name") git show --color=always $word | head -200 ;;
+    *) git log --oneline --graph --color=always $word | head -50 ;;
+  esac'
+
+# history
+HISTSIZE=50000
+SAVEHIST=50000
+HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+HISTDUP=erase
+setopt APPEND_HISTORY
+setopt SHARE_HISTORY
+setopt EXTENDED_HISTORY
+setopt HIST_IGNORE_SPACE
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_IGNORE_DUPS
+setopt HIST_FIND_NO_DUPS
+setopt HIST_EXPIRE_DUPS_FIRST
+setopt HIST_VERIFY
+
+# quality-of-life options
+setopt AUTO_CD
+setopt AUTO_PUSHD
+setopt PUSHD_IGNORE_DUPS
+setopt PUSHD_SILENT
+setopt INTERACTIVE_COMMENTS
+setopt NO_BEEP
+setopt COMPLETE_IN_WORD
+setopt ALWAYS_TO_END
+setopt PATH_DIRS
+setopt GLOB_DOTS
+setopt EXTENDED_GLOB
+setopt LONG_LIST_JOBS
+setopt NOTIFY
+
+# keybindings
+bindkey -e
+bindkey '^[[A' history-search-backward
+bindkey '^[[B' history-search-forward
+bindkey '^[[1;3D' backward-word
+bindkey '^[[1;3C' forward-word
+bindkey '^[[1;5D' backward-word
+bindkey '^[[1;5C' forward-word
+bindkey '^[[3;5~' kill-word
+bindkey '^H' backward-kill-word
+bindkey '^[[Z' reverse-menu-complete
+bindkey '^[[3~' delete-char
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[[1~' beginning-of-line
+bindkey '^[[4~' end-of-line
+
+# shell integrations
+eval "$(fzf --zsh)"
+eval "$(zoxide init --cmd cd zsh)"
+
+# Autosuggestion appearance
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
+# direnv (optional)
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi
