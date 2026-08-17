@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+"""Export a portable, credential-free GNOME dconf snapshot.
+
+Writes sanitized dumps under gnome/dconf/ plus an extensions manifest.
+Re-run this on the source machine whenever desktop settings change.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+OUT = REPO / "gnome"
+DCONF_OUT = OUT / "dconf"
+
+# dconf dumps are loaded with these prefixes.
+SOURCES = {
+    "org.gnome.ini": "/org/gnome/",
+    "org.gtk.ini": "/org/gtk/",
+    "com.ini": "/com/",
+    "io.ini": "/io/",
+}
+
+# Keep only these section prefixes (relative to the dump root).
+INCLUDE_PREFIXES = {
+    "org.gnome.ini": (
+        "calculator",
+        "desktop/a11y",
+        "desktop/app-folders",
+        "desktop/background",
+        "desktop/break-reminders",
+        "desktop/calendar",
+        "desktop/datetime",
+        "desktop/file-sharing",
+        "desktop/input-sources",
+        "desktop/interface",
+        "desktop/peripherals",
+        "desktop/privacy",
+        "desktop/screen-time-limits",
+        "desktop/screensaver",
+        "desktop/search-providers",
+        "desktop/session",
+        "desktop/sound",
+        "desktop/wm",
+        "mutter",
+        "nautilus/compression",
+        "nautilus/icon-view",
+        "nautilus/list-view",
+        "nautilus/preferences",
+        "papers",
+        "settings-daemon/plugins/color",
+        "settings-daemon/plugins/media-keys",
+        "settings-daemon/plugins/power",
+        "shell",
+        "system/location",
+        "tweaks",
+    ),
+    "org.gtk.ini": (
+        "gtk4/settings/file-chooser",
+        "settings/file-chooser",
+    ),
+    "com.ini": (
+        "rafaelmardojai/Blanket",
+        "usebottles/bottles",
+    ),
+    "io.ini": (
+        "github/Foldex/AdwSteamGtk",
+        "missioncenter/MissionCenter",
+    ),
+}
+
+# Drop whole sections even if a parent prefix matches.
+EXCLUDE_EXACT = {
+    "desktop/notifications",
+    "desktop/remote-desktop/rdp",
+    "nautilus/window-state",
+    "papers/default",  # includes window/zoom state; keep [papers] only
+}
+
+EXCLUDE_PREFIXES = (
+    "desktop/notifications/",
+    "desktop/remote-desktop/",
+    "nm-applet/",
+    "portal/",
+    "settings-daemon/plugins/housekeeping",
+    "settings-daemon/plugins/sharing/",
+    "software",
+    "epiphany",
+    "github/jeffshee/hanabi-extension",
+)
+
+# Keys that are machine-local, secret-adjacent, or session state.
+DROP_KEYS = {
+    "picture-uri",
+    "picture-uri-dark",
+    "window-size",
+    "window-height",
+    "window-width",
+    "window-maximized",
+    "window-position",
+    "window-state",
+    "is-maximized",
+    "last-window-maximised",
+    "last-window-size",
+    "last-save-directory",
+    "last-folder-path",
+    "last-panel",
+    "night-light-last-coordinates",
+    "command-history",
+    "welcome-dialog-last-shown-version",
+    "check-timestamp",
+    "flatpak-purge-timestamp",
+    "donation-reminder-last-shown",
+    "tls-cert",
+    "tls-key",
+    "panel-anchors",
+    "panel-lengths",
+    "preferred-monitor",
+    "preferred-monitor-by-connector",
+    "video-path",
+    "change-wallpaper-directory-path",
+    "startup-view",
+    "update-date",
+    "show-funding",
+}
+
+GTK_KEEP_KEYS = {
+    "show-hidden",
+    "sort-directories-first",
+    "clock-format",
+    "date-format",
+    "location-mode",
+    "show-size-column",
+    "show-type-column",
+    "sort-column",
+    "sort-order",
+    "type-format",
+}
+
+
+def die(msg: str) -> None:
+    print(f"export-gnome: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def require(cmd: str) -> None:
+    if shutil.which(cmd) is None:
+        die(f"missing required command: {cmd}")
+
+
+def dump_dconf(path: str) -> str:
+    result = subprocess.run(
+        ["dconf", "dump", path],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def parse_sections(text: str) -> list[tuple[str, list[tuple[str, str]]]]:
+    sections: list[tuple[str, list[tuple[str, str]]]] = []
+    current: str | None = None
+    entries: list[tuple[str, str]] = []
+
+    def flush() -> None:
+        nonlocal current, entries
+        if current is not None:
+            sections.append((current, entries))
+        current = None
+        entries = []
+
+    for raw in text.splitlines():
+        line = raw.rstrip("\n")
+        if not line.strip():
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            flush()
+            name = line[1:-1]
+            current = "" if name in {"/", ""} else name
+            entries = []
+            continue
+        if current is None:
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        entries.append((key, value))
+    flush()
+    return sections
+
+
+def included(filename: str, section: str) -> bool:
+    if section in EXCLUDE_EXACT:
+        return False
+    for prefix in EXCLUDE_PREFIXES:
+        if section == prefix.rstrip("/") or section.startswith(prefix):
+            return False
+    prefixes = INCLUDE_PREFIXES[filename]
+    if section == "":
+        return "/" in prefixes
+    return any(
+        section == prefix or section.startswith(prefix + "/")
+        for prefix in prefixes
+    )
+
+
+def keep_key(filename: str, section: str, key: str) -> bool:
+    if key in DROP_KEYS:
+        return False
+    if filename == "org.gtk.ini" and key not in GTK_KEEP_KEYS:
+        return False
+    if filename == "io.ini" and section == "missioncenter/MissionCenter":
+        return key.startswith("apps-page-") or key.startswith("services-page-") or key.startswith("performance-")
+    return True
+
+
+def format_dump(sections: list[tuple[str, list[tuple[str, str]]]]) -> str:
+    blocks: list[str] = []
+    for name, entries in sections:
+        if not entries:
+            continue
+        heading = "[/]" if name == "" else f"[{name}]"
+        lines = [heading]
+        lines.extend(f"{key}={value}" for key, value in entries)
+        blocks.append("\n".join(lines))
+    if not blocks:
+        return ""
+    return "\n\n".join(blocks) + "\n"
+
+
+def extension_dirs() -> list[Path]:
+    roots = [
+        Path.home() / ".local/share/gnome-shell/extensions",
+        Path("/usr/share/gnome-shell/extensions"),
+    ]
+    found: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.iterdir()):
+            if path.name in seen or not (path / "metadata.json").is_file():
+                continue
+            seen.add(path.name)
+            found.append(path)
+    return found
+
+
+def read_enabled() -> list[str]:
+    result = subprocess.run(
+        ["gnome-extensions", "list", "--enabled"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def write_extensions_manifest(enabled: list[str]) -> None:
+    lines = [
+        "# GNOME Shell extensions on the source machine.",
+        "# Install the enabled ones before loading dconf, then log out and back in.",
+        "# Bundled GNOME extensions live in /usr/share/gnome-shell/extensions.",
+        "",
+        f"# Shell: {shell_version()}",
+        "",
+        "# uuid\tstate\tname\tsource",
+    ]
+    enabled_set = set(enabled)
+    for path in extension_dirs():
+        name = path.name
+        try:
+            import json
+
+            meta = json.loads((path / "metadata.json").read_text())
+            pretty = meta.get("name", name)
+        except Exception:
+            pretty = name
+        state = "enabled" if name in enabled_set else "installed"
+        source = "user" if Path.home() in path.parents else "system"
+        lines.append(f"{name}\t{state}\t{pretty}\t{source}")
+    leftovers = [uuid for uuid in enabled if uuid not in {p.name for p in extension_dirs()}]
+    if leftovers:
+        lines.append("")
+        lines.append("# Listed as enabled in dconf but not installed here:")
+        for uuid in leftovers:
+            lines.append(f"# {uuid}")
+    (OUT / "extensions.txt").write_text("\n".join(lines) + "\n")
+
+
+def shell_version() -> str:
+    result = subprocess.run(
+        ["gnome-shell", "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip() or "unknown"
+
+
+def rewrite_enabled(sections: list[tuple[str, list[tuple[str, str]]]], enabled: list[str]) -> None:
+    """Keep enabled-extensions as actually installed + enabled."""
+    installed = {path.name for path in extension_dirs()}
+    keep = [uuid for uuid in enabled if uuid in installed]
+    rendered = "[" + ", ".join(f"'{uuid}'" for uuid in keep) + "]"
+    for i, (name, entries) in enumerate(sections):
+        if name != "shell":
+            continue
+        new_entries = []
+        replaced = False
+        for key, value in entries:
+            if key == "enabled-extensions":
+                new_entries.append((key, rendered))
+                replaced = True
+            else:
+                new_entries.append((key, value))
+        if not replaced:
+            new_entries.append(("enabled-extensions", rendered))
+        sections[i] = (name, new_entries)
+
+
+def sanitize(filename: str, raw: str, enabled: list[str]) -> str:
+    kept: list[tuple[str, list[tuple[str, str]]]] = []
+    for section, entries in parse_sections(raw):
+        if not included(filename, section):
+            continue
+        filtered = [(k, v) for k, v in entries if keep_key(filename, section, k)]
+        kept.append((section, filtered))
+    if filename == "org.gnome.ini":
+        rewrite_enabled(kept, enabled)
+    return format_dump(kept)
+
+
+def main() -> None:
+    require("dconf")
+    DCONF_OUT.mkdir(parents=True, exist_ok=True)
+    enabled = read_enabled()
+    for filename, path in SOURCES.items():
+        raw = dump_dconf(path)
+        cleaned = sanitize(filename, raw, enabled)
+        (DCONF_OUT / filename).write_text(cleaned)
+        print(f"wrote {DCONF_OUT.relative_to(REPO)}/{filename}")
+    write_extensions_manifest(enabled)
+    print(f"wrote { (OUT / 'extensions.txt').relative_to(REPO) }")
+    print("sanitized GNOME settings export is ready")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as exc:
+        die(exc.stderr.strip() or str(exc))

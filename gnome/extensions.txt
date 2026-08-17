@@ -1,0 +1,31 @@
+# GNOME Shell extensions on the source machine.
+# Install the enabled ones before loading dconf, then log out and back in.
+# Bundled GNOME extensions live in /usr/share/gnome-shell/extensions.
+
+# Shell: GNOME Shell 50.4
+
+# uuid	state	name	source
+appindicatorsupport@rgcjonas.gmail.com	enabled	AppIndicator and KStatusNotifierItem Support	user
+blur-my-shell@aunetx	enabled	Blur my Shell	user
+clipboard-indicator@tudmotu.com	enabled	Clipboard Indicator	user
+dash-to-dock@micxgx.gmail.com	enabled	Dash to Dock	user
+dash-to-panel@jderose9.github.com	installed	Dash to Panel	user
+ding@rastersoft.com	installed	Desktop Icons NG (DING)	user
+gamemodeshellextension@trsnaqe.com	enabled	GameMode Shell Extension	user
+gsconnect@andyholmes.github.io	enabled	GSConnect	user
+hanabi-extension@jeffshee.github.io	installed	Hanabi Extension	user
+systemMonitor@gnome-shell-extensions.gcampax.github.com	enabled	SystemMonitor	user
+apps-menu@gnome-shell-extensions.gcampax.github.com	installed	Apps Menu	system
+auto-move-windows@gnome-shell-extensions.gcampax.github.com	installed	Auto Move Windows	system
+drive-menu@gnome-shell-extensions.gcampax.github.com	installed	Removable Drive Menu	system
+launch-new-instance@gnome-shell-extensions.gcampax.github.com	installed	Launch New Instance	system
+light-style@gnome-shell-extensions.gcampax.github.com	installed	Light Style	system
+native-window-placement@gnome-shell-extensions.gcampax.github.com	installed	Native Window Placement	system
+places-menu@gnome-shell-extensions.gcampax.github.com	installed	Places Status Indicator	system
+screenshot-window-sizer@gnome-shell-extensions.gcampax.github.com	installed	Screenshot Window Sizer	system
+status-icons@gnome-shell-extensions.gcampax.github.com	installed	Status Icons	system
+system-monitor@gnome-shell-extensions.gcampax.github.com	enabled	System Monitor	system
+user-theme@gnome-shell-extensions.gcampax.github.com	enabled	User Themes	system
+window-list@gnome-shell-extensions.gcampax.github.com	installed	Window List	system
+windowsNavigator@gnome-shell-extensions.gcampax.github.com	installed	Window Navigator	system
+workspace-indicator@gnome-shell-extensions.gcampax.github.com	installed	Workspace Indicator	system

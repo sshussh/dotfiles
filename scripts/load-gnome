@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Load the sanitized GNOME dconf snapshot onto this machine.
+# Safe to re-run. Missing keys in the dump are left untouched.
+set -euo pipefail
+
+repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+dconf_dir="$repo_dir/gnome/dconf"
+
+if ! command -v dconf >/dev/null 2>&1; then
+  echo "load-gnome: dconf is not installed" >&2
+  exit 1
+fi
+
+load() {
+  local file="$1"
+  local prefix="$2"
+  local path="$dconf_dir/$file"
+  if [ ! -s "$path" ]; then
+    return 0
+  fi
+  if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    dconf load "$prefix" <"$path"
+  elif command -v dbus-run-session >/dev/null 2>&1; then
+    dbus-run-session -- dconf load "$prefix" <"$path"
+  else
+    echo "load-gnome: no DBus session; cannot load $file" >&2
+    return 1
+  fi
+  echo "loaded $file -> $prefix"
+}
+
+load org.gnome.ini /org/gnome/
+load org.gtk.ini /org/gtk/
+load com.ini /com/
+load io.ini /io/
+
+if [ -f "$repo_dir/gnome/extensions.txt" ]; then
+  echo
+  echo "Enabled extensions on the source machine:"
+  awk -F'\t' '$2=="enabled" {print "  " $1 "  (" $3 ")"}' "$repo_dir/gnome/extensions.txt"
+  echo "Install those, then log out of GNOME so the shell picks them up."
+fi

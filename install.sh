@@ -19,6 +19,9 @@ case " $* " in
   *)
     if [ "$target_dir" = "$HOME" ]; then
       systemctl --user daemon-reload
+      if [ "${GNOME_SKIP_DCONF:-}" != "1" ]; then
+        "$repo_dir/scripts/load-gnome"
+      fi
     fi
     ;;
 esac
