@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import colorsys
+import configparser
 import fcntl
 import json
 import logging
@@ -42,6 +43,13 @@ HELIUM_CONFIG_HOME = CONFIG_HOME / "net.imput.helium"
 HELIUM_PREFERENCES = HELIUM_CONFIG_HOME / "Default" / "Preferences"
 HELIUM_SINGLETONS = tuple(HELIUM_CONFIG_HOME / name for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"))
 HELIUM_BACKUP = CONFIG_HOME / "matugen" / "backups" / "20260814-helium" / "Preferences.before-matugen"
+ZEN_CONFIG_HOME = CONFIG_HOME / "zen"
+ZEN_PROFILES = ZEN_CONFIG_HOME / "profiles.ini"
+ZEN_RUNTIME_CSS = CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css"
+ZEN_IMPORT_BEGIN = "/* BEGIN Matugen Zen import */"
+ZEN_IMPORT_END = "/* END Matugen Zen import */"
+ZEN_IMPORT = f"{ZEN_IMPORT_BEGIN}\n@import url(\"matugen.css\");\n{ZEN_IMPORT_END}\n"
+ZEN_USER_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);\n'
 HANABI_SCHEMA = "io.github.jeffshee.hanabi-extension"
 HANABI_EXTENSION = "hanabi-extension@jeffshee.github.io"
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -84,6 +92,7 @@ GENERATED_FILES = (
     (CONFIG_HOME / "zed" / "themes" / "matugen.json.new", CONFIG_HOME / "zed" / "themes" / "matugen.json", "zed"),
     (CONFIG_HOME / "btop" / "themes" / "matugen.theme.new", CONFIG_HOME / "btop" / "themes" / "matugen.theme", "btop"),
     (CONFIG_HOME / "fastfetch" / "config.jsonc.new", CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
+    (CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new", ZEN_RUNTIME_CSS, "zen"),
     (
         USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css.new",
         USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css",
@@ -257,6 +266,95 @@ def apply_helium_theme(palette: dict[str, Any]) -> bool:
         return False
     LOG.info("Updated Helium's native custom-theme seed to %s", source)
     return True
+
+
+def zen_profiles() -> tuple[Path, ...]:
+    """Return Zen's selected profile directories without touching browser state."""
+    if not ZEN_PROFILES.is_file():
+        return ()
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(ZEN_PROFILES, encoding="utf-8")
+    except (OSError, configparser.Error) as error:
+        LOG.warning("Could not read Zen profiles: %s", error)
+        return ()
+
+    selected: list[str] = []
+    for section in parser.sections():
+        if section.startswith("Install"):
+            path = parser.get(section, "Default", fallback="")
+            if path:
+                selected.append(path)
+    if not selected:
+        for section in parser.sections():
+            if section.startswith("Profile") and parser.getboolean(section, "Default", fallback=False):
+                path = parser.get(section, "Path", fallback="")
+                if path:
+                    selected.append(path)
+
+    profiles: list[Path] = []
+    for relative_path in selected:
+        candidate = (ZEN_CONFIG_HOME / relative_path).resolve()
+        if candidate.is_dir() and candidate not in profiles:
+            profiles.append(candidate)
+    return tuple(profiles)
+
+
+def ensure_zen_import(profile: Path) -> bool:
+    """Install one stable import without modifying Zen Mods' generated CSS."""
+    chrome = profile / "chrome"
+    user_chrome = chrome / "userChrome.css"
+    try:
+        chrome.mkdir(parents=True, exist_ok=True, mode=0o700)
+        existing = user_chrome.read_text(encoding="utf-8") if user_chrome.exists() else ""
+        if ZEN_IMPORT_BEGIN not in existing:
+            if existing.startswith("@charset"):
+                newline = existing.find("\n")
+                existing = existing[: newline + 1] + ZEN_IMPORT + existing[newline + 1 :]
+            else:
+                existing = ZEN_IMPORT + existing
+            write_text_atomic(user_chrome, existing)
+
+        user_js = profile / "user.js"
+        preferences = user_js.read_text(encoding="utf-8") if user_js.exists() else ""
+        pattern = re.compile(r'^user_pref\("toolkit\.legacyUserProfileCustomizations\.stylesheets",\s*(?:true|false)\);\s*$', re.MULTILINE)
+        updated = pattern.sub(ZEN_USER_PREF.rstrip("\n"), preferences)
+        if updated == preferences and ZEN_USER_PREF.rstrip("\n") not in preferences:
+            updated = f"{preferences.rstrip()}\n{ZEN_USER_PREF}" if preferences.strip() else ZEN_USER_PREF
+        if updated != preferences:
+            write_text_atomic(user_js, updated)
+    except OSError as error:
+        LOG.warning("Could not configure Zen profile %s: %s", profile, error)
+        return False
+    return True
+
+
+def apply_zen_theme() -> bool:
+    """Copy the generated Matugen UI palette to Zen's active profile(s)."""
+    if not ZEN_RUNTIME_CSS.is_file():
+        LOG.debug("Zen stylesheet has not been generated; skipping Zen synchronization")
+        return False
+    try:
+        stylesheet = ZEN_RUNTIME_CSS.read_text(encoding="utf-8")
+    except OSError as error:
+        LOG.warning("Could not read generated Zen stylesheet: %s", error)
+        return False
+
+    updated = False
+    for profile in zen_profiles():
+        if not ensure_zen_import(profile):
+            continue
+        destination = profile / "chrome" / "matugen.css"
+        try:
+            current = destination.read_text(encoding="utf-8") if destination.exists() else None
+            if current != stylesheet:
+                write_text_atomic(destination, stylesheet)
+                updated = True
+        except OSError as error:
+            LOG.warning("Could not update Zen palette for %s: %s", profile, error)
+    if updated:
+        LOG.info("Updated Matugen stylesheet for Zen Browser; it applies on Zen's next UI stylesheet reload")
+    return updated
 
 
 def nearest_gnome_accent(source_hex: str) -> str:
@@ -488,6 +586,7 @@ class WallpaperPalette:
             "zed": 2_000,
             "btop": 500,
             "fastfetch": 400,
+            "zen": 1_000,
             "palette": 100,
             "svg": 500,
         }
@@ -531,6 +630,11 @@ class WallpaperPalette:
         names = {theme.get("name") for theme in zed.get("themes", []) if isinstance(theme, dict)}
         if names != {"Matugen Dark", "Matugen Light"}:
             raise RuntimeError("Generated Zed theme does not contain both expected modes")
+
+        zen_temporary = CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new"
+        zen_css = zen_temporary.read_text(encoding="utf-8")
+        if "{{" in zen_css or "--zen-primary-color:" not in zen_css:
+            raise RuntimeError("Generated Zen stylesheet is incomplete")
 
         for version, path in (
             ("3.0", CONFIG_HOME / "gtk-3.0" / "matugen.css.new"),
@@ -690,6 +794,7 @@ class WallpaperPalette:
             self.commit_generated()
             accent = self.apply_gnome_colors(palette)
             apply_helium_theme(palette)
+            apply_zen_theme()
             write_json_atomic(
                 WATCH_STATE,
                 {

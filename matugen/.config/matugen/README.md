@@ -16,6 +16,9 @@ Integrated targets:
 - btop, including live theme reload
 - Fastfetch, with a generated true-color logo and output palette
 - Helium Browser's native Chromium custom theme, applied safely before launch
+- Zen Browser's native UI through its supported profile-local `userChrome.css`
+  loader; the browser must reload its UI stylesheet (normally on restart) to
+  display a freshly generated palette
 - Steam through AdwSteamGtk custom CSS; Steam may need a natural restart
 
 The generated outputs are written to `.new` files, validated, and renamed over
@@ -76,3 +79,9 @@ Helium's browser chrome follows Matugen's source color through its native
 Chromium custom-theme setting. The watcher updates it while Helium is closed;
 the user-local Helium launcher also applies the latest palette just before a
 new browser start. An already-open Helium window is never rewritten or killed.
+
+Zen Browser uses a generated `matugen.css` in its active profile's `chrome`
+directory. Matugen preserves Zen Mods' generated `zen-themes.css`, adds one
+managed `@import` to `userChrome.css`, and enables Zen's supported custom
+stylesheet preference in `user.js`. The generated palette source remains under
+`~/.config/matugen/runtime/zen`; a wallpaper change updates it automatically.

@@ -49,6 +49,11 @@ input_path = '~/.config/matugen/templates/fastfetch.jsonc'
 output_path = '~/.config/fastfetch/config.jsonc.new'
 index = 55
 
+[templates.zen]
+input_path = '~/.config/matugen/templates/zen.css'
+output_path = '~/.config/matugen/runtime/zen/matugen.css.new'
+index = 56
+
 [templates.gnome-shell]
 input_path = '~/.config/matugen/templates/gnome-shell.css'
 output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css.new'
