@@ -24,7 +24,9 @@ On a machine that already has regular files at these paths, preview first:
 ```
 
 Then replace the conflicting files with Stow links (a timestamped copy is
-written under `~/.cache/dotfiles-stow-backup-*`):
+written under `~/.cache/dotfiles-stow-backup-*`). `--force` skips paths that
+are already the packaged file, unfolds leftover directory-level Stow folds,
+and restores the backup if Stow aborts:
 
 ```sh
 ./install.sh --force

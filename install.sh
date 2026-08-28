@@ -2,7 +2,7 @@
 # Deploy these packages into $HOME with GNU Stow, then restore GNOME settings.
 set -euo pipefail
 
-repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 target_dir="${DOTFILES_TARGET:-$HOME}"
 cd "$repo_dir"
 
@@ -77,6 +77,18 @@ if ! command -v stow >/dev/null 2>&1; then
   exit 1
 fi
 
+backup_dir=""
+if (( ! simulate )); then
+  # Directory-level folds (a symlink at OpenRGB/, matugen/, fish/functions/, ...)
+  # make Stow report "existing target is not owned by stow" and abort. Turn
+  # those into real directories before linking files with --no-folding.
+  python3 "$repo_dir/scripts/replace-existing" \
+    --unfold-only \
+    --target "$target_dir" \
+    --repo "$repo_dir" \
+    "${packages[@]}"
+fi
+
 if (( force )) && (( ! simulate )); then
   backup_dir="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles-stow-backup-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$backup_dir"
@@ -88,9 +100,25 @@ if (( force )) && (( ! simulate )); then
     "${packages[@]}"
 fi
 
-stow --dir="$repo_dir" --target="$target_dir" --no-folding --restow \
+# --force already removed stale targets, so stow (do not restow/unstow).
+# --restow is for a later git-pull update of an already-linked tree.
+stow_mode=(--restow)
+if (( force )); then
+  stow_mode=()
+fi
+
+if ! stow --dir="$repo_dir" --target="$target_dir" --no-folding \
   --ignore='__pycache__' --ignore='\.pyc$' \
-  "${stow_args[@]}" "${packages[@]}"
+  "${stow_mode[@]}" "${stow_args[@]}" "${packages[@]}"; then
+  echo "install.sh: GNU Stow aborted" >&2
+  if [[ -n "$backup_dir" ]]; then
+    echo "install.sh: restoring files from $backup_dir" >&2
+    python3 "$repo_dir/scripts/replace-existing" \
+      --restore "$backup_dir" \
+      --target "$target_dir"
+  fi
+  exit 1
+fi
 
 ensure_xdg_links() {
   local target="$1"

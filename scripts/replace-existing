@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Remove conflicting regular files and stray symlinks so GNU Stow can deploy.
+"""Prepare a home directory so GNU Stow --no-folding can deploy.
 
-Only touches destination paths that a package actually owns. Directories,
-unrelated files, and already-correct links are left alone.
+Default (used by install.sh --force):
+  * Skip paths that already are the package file (same inode or symlink into
+    the package). This must not follow a folded directory symlink and delete
+    the file inside the repository.
+  * Unfold destination directories that are leftover Stow folds (directory
+    symlinks). --no-folding needs a real directory so extra files such as
+    OpenRGB logs can sit beside the linked configs.
+  * Remove conflicting regular files and stray symlinks, optionally backing
+    them up first.
+
+Never unlinks a path whose real location is inside the Stow repository.
 """
 
 from __future__ import annotations
@@ -23,33 +32,45 @@ def die(msg: str) -> None:
     raise SystemExit(1)
 
 
-def owned_entries(package_root: Path) -> list[Path]:
-    entries: list[Path] = []
+def is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, OSError, RuntimeError):
+        return False
+
+
+def same_file(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve() == right.resolve() or os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def owned_entries(package_root: Path) -> tuple[list[Path], list[Path]]:
+    """Return (directories, files-or-dir-symlinks) relative to the package root."""
+    directories: list[Path] = []
+    files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(package_root, followlinks=False):
         keep: list[str] = []
+        current = Path(dirpath)
+        if current != package_root:
+            directories.append(current)
         for name in dirnames:
             if name in SKIP_DIRS:
                 continue
-            path = Path(dirpath) / name
+            path = current / name
             if path.is_symlink():
-                entries.append(path)
+                files.append(path)
             else:
                 keep.append(name)
         dirnames[:] = keep
         for name in filenames:
             if name in SKIP_NAMES or name.endswith(".pyc"):
                 continue
-            entries.append(Path(dirpath) / name)
-    return entries
-
-
-def already_linked(destination: Path, source: Path) -> bool:
-    if not destination.is_symlink():
-        return False
-    try:
-        return destination.resolve() == source.resolve()
-    except OSError:
-        return False
+            files.append(current / name)
+    directories.sort(key=lambda path: len(path.parts))
+    return directories, files
 
 
 def backup_path(destination: Path, backup_root: Path, target_dir: Path) -> None:
@@ -62,34 +83,103 @@ def backup_path(destination: Path, backup_root: Path, target_dir: Path) -> None:
         die(f"refusing to back up unexpected path type: {destination}")
 
 
+def restore_backup(backup_root: Path, target_dir: Path) -> int:
+    restored = 0
+    if not backup_root.is_dir():
+        die(f"backup directory is missing: {backup_root}")
+    for dirpath, dirnames, filenames in os.walk(backup_root, followlinks=False):
+        for name in filenames:
+            src = Path(dirpath) / name
+            dest = target_dir / src.relative_to(backup_root)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists() or dest.is_symlink():
+                dest.unlink()
+            shutil.copy2(src, dest, follow_symlinks=False)
+            print(f"restored {dest}")
+            restored += 1
+    print(f"replace-existing: restored {restored} path(s) from {backup_root}")
+    return restored
+
+
+def unfold_directory(destination: Path, backup_root: Path | None, target_dir: Path) -> bool:
+    """Turn a destination directory symlink into a real directory."""
+    if not destination.is_symlink():
+        return False
+    if destination.exists() and not destination.is_dir():
+        return False
+    if backup_root is not None:
+        backup_path(destination, backup_root, target_dir)
+    destination.unlink()
+    destination.mkdir(parents=True, exist_ok=True)
+    print(f"unfolded {destination}")
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True, type=Path)
-    parser.add_argument("--repo", required=True, type=Path)
+    parser.add_argument("--repo", type=Path)
     parser.add_argument("--backup", type=Path)
-    parser.add_argument("packages", nargs="+")
+    parser.add_argument("--restore", type=Path, metavar="BACKUP")
+    parser.add_argument("--unfold-only", action="store_true")
+    parser.add_argument("packages", nargs="*")
     args = parser.parse_args()
 
     target_dir = args.target.expanduser().resolve()
+
+    if args.restore is not None:
+        restore_backup(args.restore.expanduser().resolve(), target_dir)
+        return 0
+
+    if args.repo is None or not args.packages:
+        die("packages and --repo are required unless --restore is used")
+
     repo = args.repo.expanduser().resolve()
     if not repo.is_dir():
         die(f"repo is not a directory: {repo}")
 
+    unfolded = 0
     removed = 0
     skipped = 0
+
     for package in args.packages:
         package_root = repo / package
         if not package_root.is_dir():
             die(f"missing package: {package_root}")
-        for source in owned_entries(package_root):
+        directories, files = owned_entries(package_root)
+
+        for source_dir in directories:
+            relative = source_dir.relative_to(package_root)
+            destination = target_dir / relative
+            # Never replace the user's real XDG roots, only leftover folds
+            # that point at this repository (or other directory symlinks
+            # created by a previous Stow run without --no-folding).
+            if str(relative) in {".config", ".local"} and not (
+                destination.is_symlink() and is_under(destination, repo)
+            ):
+                continue
+            if destination.is_symlink():
+                unfolded += int(
+                    unfold_directory(destination, args.backup, target_dir)
+                )
+
+        if args.unfold_only:
+            continue
+
+        for source in files:
             relative = source.relative_to(package_root)
             destination = target_dir / relative
             if not destination.exists() and not destination.is_symlink():
                 skipped += 1
                 continue
-            if already_linked(destination, source):
+            if same_file(destination, source):
                 skipped += 1
                 continue
+            if is_under(destination, repo):
+                die(
+                    f"refusing to delete {destination} because it resolves inside "
+                    f"the repository ({destination.resolve()})"
+                )
             if destination.is_dir() and not destination.is_symlink():
                 die(
                     f"refusing to replace directory {destination} "
@@ -97,11 +187,20 @@ def main() -> int:
                 )
             if args.backup is not None:
                 backup_path(destination, args.backup, target_dir)
+            kind = "symlink" if destination.is_symlink() else "file"
             destination.unlink()
-            print(f"removed {destination}")
+            print(f"removed {kind} {destination}")
             removed += 1
 
-    print(f"replace-existing: removed {removed} path(s), {skipped} already clear")
+    if args.unfold_only:
+        if unfolded:
+            print(f"replace-existing: unfolded {unfolded} director(y/ies)")
+        return 0
+
+    print(
+        f"replace-existing: removed {removed} path(s), "
+        f"unfolded {unfolded} director(y/ies), {skipped} already clear"
+    )
     return 0
 
 
