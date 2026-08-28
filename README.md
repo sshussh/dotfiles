@@ -14,11 +14,13 @@ cd ~/.dotfiles
 ```
 
 `./install.sh` checks for Stow, Python, dconf, Matugen, fonts, and the apps
-these configs assume, and offers to install whatever is missing. It then
-restows the packages, enables `matugen-wallpaper.service`, loads the sanitized
-GNOME dconf snapshot, and generates a palette from the current wallpaper.
-Use `--skip-deps` to skip the check, or `-y` to install missing packages
-without asking.
+these configs assume (including paru on Arch, Extension Manager, and Zen
+Browser), and offers to install whatever is missing. It then restows the
+packages, enables `matugen-wallpaper.service`, loads the sanitized GNOME dconf
+snapshot, installs/enables the listed GNOME extensions, sets Zen as the
+default browser, makes zsh the login shell, and generates a palette from the
+current wallpaper. Use `--skip-deps` to skip the check, or `-y` to install
+missing packages without asking.
 
 On a machine that already has regular files at these paths, preview first:
 

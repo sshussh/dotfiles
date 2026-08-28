@@ -178,6 +178,31 @@ if [ "$skip_dconf" != "1" ]; then
   "$repo_dir/scripts/load-gnome"
 fi
 
+"$repo_dir/scripts/setup-gnome-extensions" || true
+
+if command -v zen-browser >/dev/null 2>&1 || [[ -f /usr/share/applications/zen.desktop ]]; then
+  echo "Setting Zen as the default web browser..."
+  xdg-settings set default-web-browser zen.desktop 2>/dev/null || true
+  xdg-mime default zen.desktop x-scheme-handler/http 2>/dev/null || true
+  xdg-mime default zen.desktop x-scheme-handler/https 2>/dev/null || true
+  xdg-mime default zen.desktop text/html 2>/dev/null || true
+else
+  echo "install.sh: Zen Browser is not installed; skipped default-browser change" >&2
+fi
+
+if command -v zsh >/dev/null 2>&1; then
+  zsh_path="$(command -v zsh)"
+  current_shell="$(getent passwd "${USER:-$(id -un)}" | cut -d: -f7 || true)"
+  if [[ -n "$zsh_path" && "$current_shell" != "$zsh_path" && "$current_shell" != /bin/zsh && "$current_shell" != /usr/bin/zsh ]]; then
+    echo "Setting the login shell to zsh ($zsh_path)..."
+    if chsh -s "$zsh_path"; then
+      echo "Login shell is now zsh. Open a new terminal for it to take effect."
+    else
+      echo "install.sh: chsh failed. Run: chsh -s $zsh_path" >&2
+    fi
+  fi
+fi
+
 if [ "$skip_matugen" != "1" ]; then
   if command -v matugen-wallpaper >/dev/null 2>&1; then
     if ! matugen-wallpaper; then
