@@ -17,6 +17,8 @@ packages=(
 
 simulate=0
 force=0
+yes=0
+skip_deps=0
 skip_dconf="${GNOME_SKIP_DCONF:-0}"
 skip_matugen="${MATUGEN_SKIP_GENERATE:-0}"
 stow_args=()
@@ -30,6 +32,8 @@ Deploy GNU Stow packages from this repository into \$DOTFILES_TARGET (default: \
 Options:
   -n, --simulate, --no   Dry run; print Stow actions and exit
   --force                Replace conflicting regular files/symlinks with Stow links
+  -y, --yes              Install missing packages without asking
+  --skip-deps            Skip the dependency check
   --skip-dconf           Do not load gnome/dconf snapshots
   --skip-matugen         Do not generate a palette after stowing
   -h, --help             Show this help
@@ -49,6 +53,12 @@ for arg in "$@"; do
       ;;
     --force|--replace-existing)
       force=1
+      ;;
+    -y|--yes)
+      yes=1
+      ;;
+    --skip-deps)
+      skip_deps=1
       ;;
     --skip-dconf)
       skip_dconf=1
@@ -71,6 +81,15 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+if (( ! skip_deps )); then
+  deps_args=()
+  (( simulate )) && deps_args+=(--report-only)
+  (( yes )) && deps_args+=(--yes)
+  [[ "$skip_dconf" == 1 ]] && deps_args+=(--skip-dconf)
+  [[ "$skip_matugen" == 1 ]] && deps_args+=(--skip-matugen)
+  "$repo_dir/scripts/check-deps" "${deps_args[@]}"
+fi
 
 if ! command -v stow >/dev/null 2>&1; then
   echo "install.sh: GNU Stow is not installed" >&2

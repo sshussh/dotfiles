@@ -13,9 +13,12 @@ cd ~/.dotfiles
 ./install.sh
 ```
 
-`./install.sh` restows the packages below, enables `matugen-wallpaper.service`,
-loads the sanitized GNOME dconf snapshot, and generates a palette from the
-current wallpaper.
+`./install.sh` checks for Stow, Python, dconf, Matugen, fonts, and the apps
+these configs assume, and offers to install whatever is missing. It then
+restows the packages, enables `matugen-wallpaper.service`, loads the sanitized
+GNOME dconf snapshot, and generates a palette from the current wallpaper.
+Use `--skip-deps` to skip the check, or `-y` to install missing packages
+without asking.
 
 On a machine that already has regular files at these paths, preview first:
 
