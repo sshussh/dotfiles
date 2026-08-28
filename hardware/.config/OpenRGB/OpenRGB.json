@@ -10,7 +10,7 @@
         "setcustom": false,
         "setminimized": true,
         "setprofile": false,
-        "setserver": false,
+        "setserver": true,
         "setserverhost": false,
         "setserverport": false
     },
@@ -2020,7 +2020,8 @@
         },
         "greyscale_tray_icon": true,
         "language": "System Default",
-        "minimize_on_close": false,
-        "run_zone_checks": true
+        "minimize_on_close": true,
+        "run_zone_checks": true,
+        "show_led_view": false
     }
 }

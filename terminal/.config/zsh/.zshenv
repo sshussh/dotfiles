@@ -18,6 +18,7 @@ path=(
   /usr/local/go/bin
   $HOME/dev/sdk/flutter/bin
   $HOME/.spicetify
+  $HOME/dev/opt
   /usr/local/bin
   /usr/sbin
   $path
@@ -76,5 +77,4 @@ if [[ -r $ZDOTDIR/.zshenv.local ]]; then
   source "$ZDOTDIR/.zshenv.local"
 fi
 
-export PATH="$PATH:/home/shush/dev/opt"
 

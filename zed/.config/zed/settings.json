@@ -1,9 +1,6 @@
 {
   "text_rendering_mode": "grayscale",
   "language_models": {
-    "ollama": {
-      "context_window": 16384,
-    },
   },
   "vim": {
     "gdefault": false,
@@ -65,11 +62,11 @@
     // "mode": "eager",
     // "copilot": { "enable_next_edit_suggestions": true },
 
-    "provider": "zed",
+    "provider": "open_ai_compatible_api",
     "open_ai_compatible_api": {
-      "api_url": "http://localhost:1234/v1/completions",
-      "model": "YOUR_ZETA2_MODEL_ID",
-      "prompt_format": "zeta2",
+      "model": "",
+      "api_url": "",
+      "prompt_format": "infer",
       "max_output_tokens": 512,
     },
   },
@@ -92,6 +89,10 @@
     "inline_blame": { "show_commit_summary": true, "enabled": true },
   },
   "agent": {
+    "tool_permissions": {
+      "default": "allow",
+      "tools": {}
+    },
     "auto_compact": {
       "enabled": false,
     },
@@ -114,10 +115,9 @@
     "enable_feedback": true,
     "default_profile": "write",
     "default_model": {
-      "effort": "high",
-      "enable_thinking": true,
-      "provider": "zed.dev",
-      "model": "gpt-5.6-terra",
+      "enable_thinking": false,
+      "provider": "lmstudio",
+      "model": "openai/gpt-oss-20b",
     },
     "play_sound_when_agent_done": "always",
     "default_width": 550,
@@ -130,7 +130,6 @@
     "file_icons": true,
     "collapse_untracked_diff": false,
     "status_style": "icon",
-    "sort_by_path": true,
     "tree_view": true,
     "default_width": 350,
     "dock": "right",
@@ -228,10 +227,10 @@
   "cursor_shape": "block",
   "icon_theme": {
     "mode": "dark",
-    "light": "Material Icon Theme",
-    "dark": "Catppuccin Latte",
+    "light": "Catppuccin Frappé",
+    "dark": "Catppuccin Mocha",
   },
   "telemetry": { "diagnostics": false, "metrics": false },
-  "theme": { "mode": "system", "light": "Matugen Light", "dark": "Matugen Dark" },
+  "theme": { "mode": "dark", "light": "Matugen Light", "dark": "Matugen Dark" },
   "context_servers": {},
 }

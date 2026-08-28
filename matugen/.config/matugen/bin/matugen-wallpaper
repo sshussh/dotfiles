@@ -31,10 +31,10 @@ from gi.repository import Gio, GLib, GLibUnix  # noqa: E402
 
 
 LOG = logging.getLogger("matugen-wallpaper")
-USER_HOME = Path("/home/shush")
+USER_HOME = Path.home()
 CONFIG_HOME = USER_HOME / ".config"
 CACHE_HOME = USER_HOME / ".cache" / "matugen"
-MATUGEN = USER_HOME / ".local" / "bin" / "matugen"
+MATUGEN = Path(os.environ["MATUGEN_BIN"]).expanduser() if os.environ.get("MATUGEN_BIN") else Path(shutil.which("matugen") or (USER_HOME / ".local" / "bin" / "matugen"))
 MATUGEN_CONFIG = CONFIG_HOME / "matugen" / "config.toml"
 WATCH_STATE = CACHE_HOME / "watch-state.json"
 LOCK_FILE = CACHE_HOME / "apply.lock"
@@ -50,6 +50,9 @@ ZEN_IMPORT_BEGIN = "/* BEGIN Matugen Zen import */"
 ZEN_IMPORT_END = "/* END Matugen Zen import */"
 ZEN_IMPORT = f"{ZEN_IMPORT_BEGIN}\n@import url(\"matugen.css\");\n{ZEN_IMPORT_END}\n"
 ZEN_USER_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);\n'
+VIM_RUNTIME = CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim"
+SPICETIFY_THEME_HOME = CONFIG_HOME / "spicetify" / "Themes" / "Matugen"
+SPICETIFY_CONFIG = CONFIG_HOME / "spicetify" / "config-xpui.ini"
 HANABI_SCHEMA = "io.github.jeffshee.hanabi-extension"
 HANABI_EXTENSION = "hanabi-extension@jeffshee.github.io"
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -91,14 +94,19 @@ GENERATED_FILES = (
     (CONFIG_HOME / "ghostty" / "themes" / "matugen.new", CONFIG_HOME / "ghostty" / "themes" / "matugen", "ghostty"),
     (CONFIG_HOME / "zed" / "themes" / "matugen.json.new", CONFIG_HOME / "zed" / "themes" / "matugen.json", "zed"),
     (CONFIG_HOME / "btop" / "themes" / "matugen.theme.new", CONFIG_HOME / "btop" / "themes" / "matugen.theme", "btop"),
+    (CONFIG_HOME / "zsh" / "prompt.json.new", CONFIG_HOME / "zsh" / "prompt.json", "ohmyposh"),
+    (CONFIG_HOME / "matugen" / "runtime" / "zsh" / "prompt.zsh.new", CONFIG_HOME / "matugen" / "runtime" / "zsh" / "prompt.zsh", "zsh"),
     (CONFIG_HOME / "fastfetch" / "config.jsonc.new", CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
     (CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new", ZEN_RUNTIME_CSS, "zen"),
+    (CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim.new", VIM_RUNTIME, "vim"),
     (
         USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css.new",
         USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css",
         "css",
     ),
     (CONFIG_HOME / "AdwSteamGtk" / "custom.css.new", CONFIG_HOME / "AdwSteamGtk" / "custom.css", "css"),
+    (SPICETIFY_THEME_HOME / "color.ini.new", SPICETIFY_THEME_HOME / "color.ini", "spicetify-ini"),
+    (SPICETIFY_THEME_HOME / "user.css.new", SPICETIFY_THEME_HOME / "user.css", "spicetify-css"),
     (CACHE_HOME / "palette.json.new", CACHE_HOME / "palette.json", "palette"),
 ) + tuple(
     (
@@ -585,8 +593,13 @@ class WallpaperPalette:
             "ghostty": 250,
             "zed": 2_000,
             "btop": 500,
+            "ohmyposh": 2_000,
+            "zsh": 300,
             "fastfetch": 400,
             "zen": 1_000,
+            "vim": 4_000,
+            "spicetify-ini": 500,
+            "spicetify-css": 2_000,
             "palette": 100,
             "svg": 500,
         }
@@ -594,8 +607,20 @@ class WallpaperPalette:
             if not temporary.is_file() or temporary.stat().st_size < minimum_sizes[kind]:
                 raise RuntimeError(f"Generated {kind} output is missing or too small: {temporary}")
             text = temporary.read_text(encoding="utf-8")
-            if "{{" in text or "<*" in text:
+            if kind != "ohmyposh" and ("{{" in text or "<*" in text):
                 raise RuntimeError(f"Unresolved Matugen expression in {temporary}")
+            if kind == "ohmyposh":
+                try:
+                    prompt = json.loads(text)
+                except json.JSONDecodeError as error:
+                    raise RuntimeError(f"Generated Oh My Posh configuration is not valid JSON: {temporary}: {error}") from error
+                prompt_palette = prompt.get("palette")
+                if prompt.get("version") != 3 or not isinstance(prompt_palette, dict) or not prompt_palette.get("blue"):
+                    raise RuntimeError("Generated Oh My Posh configuration is missing its palette")
+                if "\\{{" in text:
+                    raise RuntimeError("Generated Oh My Posh configuration still has escaped template syntax")
+            if kind == "zsh" and "MATUGEN_ZSH_PATH" not in text:
+                raise RuntimeError("Generated Zsh palette is incomplete")
             if kind == "css" and text.count("{") != text.count("}"):
                 raise RuntimeError(f"Unbalanced CSS braces in {temporary}")
             if kind == "ghostty" and text.count("palette = ") != 16:
@@ -614,6 +639,48 @@ class WallpaperPalette:
                     raise RuntimeError("Generated Fastfetch configuration is missing logo colors")
                 if not isinstance(fastfetch.get("modules"), list) or not fastfetch["modules"]:
                     raise RuntimeError("Generated Fastfetch configuration is missing its module list")
+            if kind == "vim" and 'let g:colors_name = "matugen"' not in text:
+                raise RuntimeError("Generated Vim colorscheme is incomplete")
+            if kind == "spicetify-ini":
+                parser = configparser.ConfigParser(interpolation=None)
+                try:
+                    parser.read_string(text)
+                except configparser.Error as error:
+                    raise RuntimeError(f"Generated Spicetify color scheme is invalid: {temporary}: {error}") from error
+                if "Matugen" not in parser:
+                    raise RuntimeError("Generated Spicetify color scheme has no Matugen section")
+                required_spice_colors = {
+                    "text",
+                    "subtext",
+                    "main",
+                    "main-elevated",
+                    "highlight",
+                    "highlight-elevated",
+                    "sidebar",
+                    "player",
+                    "card",
+                    "shadow",
+                    "selected-row",
+                    "button",
+                    "button-active",
+                    "button-disabled",
+                    "tab-active",
+                    "notification",
+                    "notification-error",
+                    "misc",
+                }
+                scheme = parser["Matugen"]
+                if not required_spice_colors.issubset(scheme):
+                    raise RuntimeError("Generated Spicetify color scheme is missing required colors")
+                for name in required_spice_colors:
+                    components = [component.strip() for component in scheme[name].split(",")]
+                    if len(components) != 3 or any(not component.isdigit() or not 0 <= int(component) <= 255 for component in components):
+                        raise RuntimeError(f"Generated Spicetify color {name!r} is not an RGB triple")
+            if kind == "spicetify-css":
+                if text.count("{") != text.count("}"):
+                    raise RuntimeError(f"Unbalanced Spicetify CSS braces in {temporary}")
+                if "--matugen-primary:" not in text or "var(--spice-main)" not in text:
+                    raise RuntimeError("Generated Spicetify stylesheet is incomplete")
             if kind == "svg":
                 try:
                     root = ET.fromstring(text)
@@ -768,10 +835,69 @@ class WallpaperPalette:
         if result.returncode != 0:
             LOG.warning("AdwSteamGtk could not refresh Steam CSS: %s", (result.stderr or result.stdout).strip())
 
+    def refresh_spicetify_theme(self) -> None:
+        """Refresh the active Matugen Spicetify theme once after both files commit."""
+        if os.environ.get("MATUGEN_SKIP_SPOTIFY") == "1" or not SPICETIFY_CONFIG.is_file():
+            return
+
+        config = configparser.ConfigParser(interpolation=None)
+        try:
+            config.read(SPICETIFY_CONFIG, encoding="utf-8")
+        except (OSError, configparser.Error) as error:
+            LOG.warning("Could not read Spicetify configuration: %s", error)
+            return
+        settings = config["Setting"] if "Setting" in config else None
+        if settings is None or settings.get("current_theme", "") != "Matugen" or settings.get("color_scheme", "") != "Matugen":
+            return
+
+        # A closed Spotify still needs its installed CSS refreshed for its next
+        # normal launch. An open one is restarted once after the refresh.
+        user_id = str(os.geteuid())
+        running = subprocess.run(
+            ["pgrep", "-u", user_id, "-x", "spotify"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        executable = next(
+            (
+                candidate
+                for candidate in (
+                    shutil.which("spicetify"),
+                    "/usr/sbin/spicetify",
+                    "/usr/bin/spicetify",
+                )
+                if candidate and Path(candidate).is_file()
+            ),
+            None,
+        )
+        if executable is None:
+            LOG.warning("Spicetify is configured for Matugen but its executable was not found")
+            return
+        command = [executable, "refresh"]
+        if running.returncode == 0:
+            command.append("restart")
+        else:
+            command.append("--no-restart")
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            LOG.warning("Spicetify theme refresh timed out")
+            return
+        if result.returncode != 0:
+            LOG.warning("Spicetify could not refresh Spotify: %s", (result.stderr or result.stdout).strip())
+
     def reload_everything(self) -> None:
         self.reload_gtk()
         self.signal_reloadable_apps()
         self.install_steam_css()
+        self.refresh_spicetify_theme()
 
     def apply(self, *, force: bool = False, override: Path | None = None) -> bool:
         self.prepare_directories()

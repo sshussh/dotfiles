@@ -18,4 +18,3 @@ if [[ -r $ZDOTDIR/.zshrc.local ]]; then
   source "$ZDOTDIR/.zshrc.local"
 fi
 
-export PATH=$PATH:/home/shush/.spicetify

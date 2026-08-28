@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
 
-USER_HOME = Path("/home/shush")
+USER_HOME = Path.home()
 SYNC = USER_HOME / ".local" / "bin" / "matugen-wallpaper"
-HELIUM = "/usr/bin/helium-browser"
+HELIUM = shutil.which("helium-browser") or "/usr/bin/helium-browser"
 
 
 def main() -> int:

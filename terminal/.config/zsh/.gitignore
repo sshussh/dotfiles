@@ -3,4 +3,5 @@
 .zsh_history
 .zshrc.local
 .zshenv.local
+prompt.json
 *.zwc

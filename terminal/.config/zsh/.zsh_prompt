@@ -1,7 +1,305 @@
-# oh-my-posh prompt
+# Prompt: Oh My Posh when present, otherwise a native two-line prompt that
+# reads Matugen's palette each precmd so an open shell tracks wallpaper
+# changes. Segments are contextual — they appear only when they have
+# something to say.
+typeset -g _MATUGEN_ZSH_RUNTIME="${XDG_CONFIG_HOME:-$HOME/.config}/matugen/runtime/zsh/prompt.zsh"
+
+# Stop venv/conda from injecting their own "(env)" prefix.
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+export CONDA_CHANGEPS1=no
+
+function _prompt_defaults() {
+  : ${MATUGEN_ZSH_PATH:=$'%F{blue}'}
+  : ${MATUGEN_ZSH_SUCCESS:=$'%F{green}'}
+  : ${MATUGEN_ZSH_ERROR:=$'%F{red}'}
+  : ${MATUGEN_ZSH_MUTED:=$'%F{8}'}
+  : ${MATUGEN_ZSH_WARN:=$'%F{yellow}'}
+  : ${MATUGEN_ZSH_ACCENT:=$'%F{magenta}'}
+  : ${MATUGEN_ZSH_RESET:='%f'}
+}
+
+function _prompt_load_palette() {
+  if [[ -r $_MATUGEN_ZSH_RUNTIME ]]; then
+    builtin source "$_MATUGEN_ZSH_RUNTIME"
+  fi
+  _prompt_defaults
+}
+
+# Escape % so branch names / paths cannot break prompt expansion.
+function _prompt_escape() {
+  REPLY=${1//\%/%%}
+}
+
+# Fish-style path once it gets deep: keep the last two directories in full,
+# abbreviate the rest. Dotdirs keep two characters so .config ≠ .cache.
+function _prompt_path() {
+  emulate -L zsh
+  local p=$PWD
+  if [[ $p == "$HOME" || $p == "$HOME/"* ]]; then
+    p="~${p#$HOME}"
+  fi
+  local -a segs=("${(s:/:)p}")
+  local i n=${#segs} s
+  if (( n > 4 )); then
+    for (( i = 1; i <= n - 2; i++ )); do
+      s=${segs[i]}
+      [[ -z $s || $s == '~' ]] && continue
+      if [[ $s == .* ]]; then
+        segs[i]=${s:0:2}
+      else
+        segs[i]=${s:0:1}
+      fi
+    done
+  fi
+  _prompt_escape "${(j:/:)segs}"
+  local color=$MATUGEN_ZSH_PATH
+  [[ -w $PWD ]] || color=$MATUGEN_ZSH_MUTED
+  print -r -- "${color}${REPLY}${MATUGEN_ZSH_RESET}"
+}
+
+function _prompt_git() {
+  emulate -L zsh
+  local out
+  out=$(GIT_OPTIONAL_LOCKS=0 git status --porcelain=v2 --branch --show-stash --ignore-submodules=dirty 2>/dev/null) || return 0
+  [[ -n $out ]] || return 0
+  local -a lines=("${(@f)out}")
+
+  local branch= oid= gitdir= state=
+  local -i ahead=0 behind=0 staged=0 unstaged=0 untracked=0 conflicts=0 stash=0 detached=0
+  local line xy s w rest
+
+  for line in "$lines[@]"; do
+    case $line in
+      '# branch.head '*)
+        branch=${line#\# branch.head }
+        [[ $branch == '(detached)' ]] && detached=1
+        ;;
+      '# branch.oid '*)
+        oid=${line#\# branch.oid }
+        ;;
+      '# branch.ab '*)
+        rest=${line#\# branch.ab }
+        ahead=${${rest%% *}#+}
+        behind=${${rest##* }#-}
+        ;;
+      '# stash '*)
+        stash=${line#\# stash }
+        ;;
+      'u '*)
+        (( conflicts++ ))
+        ;;
+      '?'*)
+        (( untracked++ ))
+        ;;
+      [12]' '*)
+        xy=${line:2:2}
+        s=${xy[1]}
+        w=${xy[2]}
+        if [[ $s == U || $w == U ]]; then
+          (( conflicts++ ))
+        else
+          [[ $s != '.' ]] && (( staged++ ))
+          [[ $w != '.' ]] && (( unstaged++ ))
+        fi
+        ;;
+    esac
+  done
+
+  gitdir=$(git rev-parse --git-dir 2>/dev/null) || gitdir=
+  [[ -n $gitdir && $gitdir != /* ]] && gitdir=$PWD/$gitdir
+  if [[ -d $gitdir/rebase-merge || -d $gitdir/rebase-apply ]]; then
+    state=rebase
+  elif [[ -f $gitdir/MERGE_HEAD ]]; then
+    state=merge
+  elif [[ -f $gitdir/CHERRY_PICK_HEAD ]]; then
+    state=cherry
+  elif [[ -f $gitdir/REVERT_HEAD ]]; then
+    state=revert
+  elif [[ -f $gitdir/BISECT_LOG ]]; then
+    state=bisect
+  fi
+
+  if (( detached )); then
+    branch=${oid:0:7}
+  fi
+  [[ -n $branch ]] || return 0
+  [[ -n $state ]] && branch+="|$state"
+  _prompt_escape "$branch"
+
+  local -a flags
+  (( conflicts )) && flags+=("=$conflicts")
+  (( unstaged ))  && flags+=("!$unstaged")
+  (( staged ))    && flags+=("+$staged")
+  (( untracked )) && flags+=("?$untracked")
+  (( ahead ))     && flags+=("⇡$ahead")
+  (( behind ))    && flags+=("⇣$behind")
+  (( stash ))     && flags+=("≡$stash")
+
+  local text=$'\ue725 '"${REPLY}"
+  (( ${#flags} )) && text+=" ${(j: :)flags}"
+
+  local color=$MATUGEN_ZSH_SUCCESS
+  if (( conflicts || (ahead && behind) )); then
+    color=$MATUGEN_ZSH_ERROR
+  elif (( unstaged || staged || untracked || behind )); then
+    color=$MATUGEN_ZSH_WARN
+  elif (( ahead )); then
+    color=$MATUGEN_ZSH_ACCENT
+  fi
+  print -r -- "${color}${text}${MATUGEN_ZSH_RESET}"
+}
+
+function _prompt_venv() {
+  local name=
+  if [[ -n $VIRTUAL_ENV ]]; then
+    name=${VIRTUAL_ENV:t}
+    if [[ $name == .venv || $name == venv || $name == .env || $name == env ]]; then
+      name=${VIRTUAL_ENV:h:t}
+    fi
+  elif [[ -n $CONDA_DEFAULT_ENV ]]; then
+    name=$CONDA_DEFAULT_ENV
+  fi
+  [[ -n $name ]] || return 0
+  _prompt_escape "$name"
+  print -r -- "${MATUGEN_ZSH_WARN}"$'\ue73c '"${REPLY}${MATUGEN_ZSH_RESET}"
+}
+
+function _prompt_duration() {
+  [[ -n ${_PROMPT_CMD_START:-} ]] || return 0
+  local -i ms=$(( (EPOCHREALTIME - _PROMPT_CMD_START) * 1000 ))
+  (( ms >= 500 )) || return 0
+  local text
+  if (( ms < 10000 )); then
+    printf -v text '%d.%ds' $(( ms / 1000 )) $(( (ms % 1000) / 100 ))
+  elif (( ms < 60000 )); then
+    printf -v text '%ds' $(( ms / 1000 ))
+  elif (( ms < 3600000 )); then
+    printf -v text '%dm%02ds' $(( ms / 60000 )) $(( (ms % 60000) / 1000 ))
+  else
+    printf -v text '%dh%02dm' $(( ms / 3600000 )) $(( (ms % 3600000) / 60000 ))
+  fi
+  print -r -- "${MATUGEN_ZSH_MUTED}${text}${MATUGEN_ZSH_RESET}"
+}
+
+function _prompt_status() {
+  local -i code=$1
+  (( code )) || return 0
+  local text=$code
+  case $code in
+    126) text='not executable' ;;
+    127) text='not found' ;;
+    129) text='SIGHUP' ;;
+    130) text='SIGINT' ;;
+    131) text='SIGQUIT' ;;
+    132) text='SIGILL' ;;
+    134) text='SIGABRT' ;;
+    136) text='SIGFPE' ;;
+    137) text='SIGKILL' ;;
+    139) text='SIGSEGV' ;;
+    141) text='SIGPIPE' ;;
+    143) text='SIGTERM' ;;
+  esac
+  print -r -- "${MATUGEN_ZSH_ERROR}✘ ${text}${MATUGEN_ZSH_RESET}"
+}
+
+function _prompt_preexec() {
+  typeset -g _PROMPT_CMD_START=$EPOCHREALTIME
+  typeset -g _PROMPT_EXECUTED=1
+}
+
+function _prompt_precmd() {
+  local -i last_status=$?
+  emulate -L zsh
+  _prompt_load_palette
+
+  local -i executed=${_PROMPT_EXECUTED:-0}
+  typeset -g _PROMPT_EXECUTED=0
+  (( executed )) || last_status=0
+
+  local -a segs
+  local bit
+
+  if [[ -n ${SSH_CONNECTION:-} || -n ${SSH_CLIENT:-} || -n ${SSH_TTY:-} ]]; then
+    _prompt_escape "${USER}@${HOST%%.*}"
+    segs+=("${MATUGEN_ZSH_ACCENT}"$'\uf023 '"${REPLY}${MATUGEN_ZSH_RESET}")
+  fi
+
+  segs+=("$(_prompt_path)")
+
+  bit=$(_prompt_git)
+  [[ -n $bit ]] && segs+=("$bit")
+
+  bit=$(_prompt_venv)
+  [[ -n $bit ]] && segs+=("$bit")
+
+  if [[ -n ${IN_NIX_SHELL:-} ]]; then
+    segs+=("${MATUGEN_ZSH_MUTED}nix${MATUGEN_ZSH_RESET}")
+  fi
+  if [[ -n ${container:-} || -f /run/.containerenv || -f /.dockerenv ]]; then
+    segs+=("${MATUGEN_ZSH_MUTED}ctr${MATUGEN_ZSH_RESET}")
+  fi
+
+  if (( ${#jobstates} )); then
+    segs+=("${MATUGEN_ZSH_MUTED}✦${#jobstates}${MATUGEN_ZSH_RESET}")
+  fi
+
+  if (( executed )); then
+    bit=$(_prompt_duration)
+    [[ -n $bit ]] && segs+=("$bit")
+    bit=$(_prompt_status $last_status)
+    [[ -n $bit ]] && segs+=("$bit")
+  fi
+  unset _PROMPT_CMD_START
+
+  if (( UID == 0 )); then
+    segs+=("${MATUGEN_ZSH_WARN}"$'\uf0e7'"${MATUGEN_ZSH_RESET}")
+  fi
+
+  local chevron=$MATUGEN_ZSH_ACCENT
+  (( last_status )) && chevron=$MATUGEN_ZSH_ERROR
+
+  PROMPT="${(j: :)segs}"$'\n'"${chevron}❯${MATUGEN_ZSH_RESET} "
+  PS2="${MATUGEN_ZSH_MUTED}…${MATUGEN_ZSH_RESET} "
+  RPROMPT=
+}
+
+# Previous commands collapse to a single muted chevron in scrollback.
+function _prompt_accept-line() {
+  local saved=$PROMPT
+  PROMPT="${MATUGEN_ZSH_MUTED}❯${MATUGEN_ZSH_RESET} "
+  zle reset-prompt
+  PROMPT=$saved
+  if (( $+widgets[_prompt_orig_accept-line] )); then
+    zle _prompt_orig_accept-line
+  else
+    zle .accept-line
+  fi
+}
+
+function _prompt_setup_native() {
+  zmodload zsh/datetime
+  _prompt_defaults
+  autoload -Uz add-zsh-hook
+  add-zsh-hook -d precmd _prompt_precmd 2>/dev/null
+  add-zsh-hook -d preexec _prompt_preexec 2>/dev/null
+  add-zsh-hook precmd _prompt_precmd
+  add-zsh-hook preexec _prompt_preexec
+  precmd_functions=(_prompt_precmd ${precmd_functions:#_prompt_precmd})
+
+  if (( $+widgets[accept-line] )); then
+    if [[ ${widgets[accept-line]} != user:_prompt_accept-line ]]; then
+      zle -A accept-line _prompt_orig_accept-line 2>/dev/null
+      zle -N accept-line _prompt_accept-line
+    fi
+  fi
+
+  setopt prompt_percent
+  unsetopt prompt_subst
+  _prompt_precmd
+}
+
 if command -v oh-my-posh >/dev/null 2>&1; then
   eval "$(oh-my-posh init zsh --config "${ZDOTDIR}/prompt.json")"
 else
-  # Minimal fallback if oh-my-posh is missing
-  PROMPT='%F{blue}%~%f %(?.%F{magenta}.%F{red})❯%f '
+  _prompt_setup_native
 fi

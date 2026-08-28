@@ -44,6 +44,16 @@ input_path = '~/.config/matugen/templates/btop.theme'
 output_path = '~/.config/btop/themes/matugen.theme.new'
 index = 50
 
+[templates.oh-my-posh]
+input_path = '~/.config/matugen/templates/oh-my-posh.json'
+output_path = '~/.config/zsh/prompt.json.new'
+index = 52
+
+[templates.zsh-palette]
+input_path = '~/.config/matugen/templates/zsh-palette.zsh'
+output_path = '~/.config/matugen/runtime/zsh/prompt.zsh.new'
+index = 53
+
 [templates.fastfetch]
 input_path = '~/.config/matugen/templates/fastfetch.jsonc'
 output_path = '~/.config/fastfetch/config.jsonc.new'
@@ -54,6 +64,11 @@ input_path = '~/.config/matugen/templates/zen.css'
 output_path = '~/.config/matugen/runtime/zen/matugen.css.new'
 index = 56
 
+[templates.vim]
+input_path = '~/.config/matugen/templates/vim.vim'
+output_path = '~/.config/matugen/runtime/vim/colors/matugen.vim.new'
+index = 58
+
 [templates.gnome-shell]
 input_path = '~/.config/matugen/templates/gnome-shell.css'
 output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css.new'
@@ -63,6 +78,16 @@ index = 60
 input_path = '~/.config/matugen/templates/adw-steam-gtk.css'
 output_path = '~/.config/AdwSteamGtk/custom.css.new'
 index = 70
+
+[templates.spicetify-colors]
+input_path = '~/.config/matugen/templates/spicetify-color.ini'
+output_path = '~/.config/spicetify/Themes/Matugen/color.ini.new'
+index = 75
+
+[templates.spicetify-css]
+input_path = '~/.config/matugen/templates/spicetify-user.css'
+output_path = '~/.config/spicetify/Themes/Matugen/user.css.new'
+index = 76
 
 [templates.icon-folder]
 input_path = '~/.config/matugen/templates/icons/places/folder.svg'

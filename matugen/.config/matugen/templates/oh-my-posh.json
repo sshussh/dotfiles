@@ -1,0 +1,182 @@
+{
+  "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
+  "version": 3,
+  "final_space": true,
+  "console_title_template": "\{{ .Folder }}\{{ if .Root }} #\{{ end }} · \{{ .Shell }}",
+  "palette": {
+    "bg": "{{colors.surface.default.hex}}",
+    "fg": "{{colors.on_surface.default.hex}}",
+    "muted": "{{colors.outline.default.hex}}",
+    "surface": "{{colors.surface_container.default.hex}}",
+    "blue": "{{colors.primary.default.hex}}",
+    "lavender": "{{colors.secondary.default.hex}}",
+    "sapphire": "{{colors.blue.default.hex}}",
+    "sky": "{{colors.cyan.default.hex}}",
+    "teal": "{{colors.tertiary.default.hex}}",
+    "green": "{{colors.green.default.hex}}",
+    "yellow": "{{colors.yellow.default.hex}}",
+    "peach": "{{colors.tertiary.default.hex}}",
+    "maroon": "{{colors.red.default.hex}}",
+    "red": "{{colors.red.default.hex}}",
+    "mauve": "{{colors.magenta.default.hex}}",
+    "pink": "{{colors.magenta.default.hex}}",
+    "flamingo": "{{colors.red.default.hex | lighten: 12.0}}",
+    "rosewater": "{{colors.secondary.default.hex}}",
+    "overlay": "{{colors.outline.default.hex}}",
+    "mint": "{{colors.green.default.hex}}",
+    "orange": "{{colors.yellow.default.hex}}"
+  },
+  "blocks": [
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "segments": [
+        {
+          "type": "session",
+          "style": "plain",
+          "foreground": "p:peach",
+          "template": "\{{ if .SSHSession }}\uf023 \{{ .UserName }}@\{{ .HostName }} \{{ end }}"
+        },
+        {
+          "type": "path",
+          "style": "plain",
+          "foreground": "p:blue",
+          "template": "\{{ .Path }} ",
+          "options": {
+            "style": "fish",
+            "dir_length": 1,
+            "full_length_dirs": 2,
+            "home_icon": "~",
+            "folder_separator_icon": "/"
+          }
+        },
+        {
+          "type": "git",
+          "style": "plain",
+          "foreground": "p:green",
+          "foreground_templates": [
+            "\{{ if or (.Working.Changed) (.Staging.Changed) }}p:yellow\{{ end }}",
+            "\{{ if and (gt .Ahead 0) (gt .Behind 0) }}p:red\{{ end }}",
+            "\{{ if gt .Ahead 0 }}p:sapphire\{{ end }}",
+            "\{{ if gt .Behind 0 }}p:mauve\{{ end }}"
+          ],
+          "template": "\{{ .HEAD }}\{{ if .BranchStatus }} \{{ .BranchStatus }}\{{ end }}\{{ if .Working.Changed }} \{{ .Working.String }}\{{ end }}\{{ if .Staging.Changed }} \uf046\{{ .Staging.String }}\{{ end }}\{{ if gt .StashCount 0 }} \uf692\{{ .StashCount }}\{{ end }} ",
+          "options": {
+            "branch_icon": "\ue725 ",
+            "fetch_status": true,
+            "fetch_upstream_icon": true
+          }
+        },
+        {
+          "type": "python",
+          "style": "plain",
+          "foreground": "p:yellow",
+          "template": "\ue73c \{{ if .Error }}\{{ .Error }}\{{ else }}\{{ if .Venv }}\{{ .Venv }}\{{ else }}\{{ .Full }}\{{ end }}\{{ end }} ",
+          "options": {
+            "display_mode": "context",
+            "fetch_virtual_env": true
+          }
+        },
+        {
+          "type": "node",
+          "style": "plain",
+          "foreground": "p:green",
+          "template": "\ue718 \{{ .Full }} ",
+          "options": {
+            "display_mode": "files"
+          }
+        },
+        {
+          "type": "bun",
+          "style": "plain",
+          "foreground": "p:peach",
+          "template": "\ue74f \{{ .Full }} ",
+          "options": {
+            "display_mode": "files"
+          }
+        },
+        {
+          "type": "go",
+          "style": "plain",
+          "foreground": "p:sky",
+          "template": "\ue627 \{{ .Full }} ",
+          "options": {
+            "display_mode": "files"
+          }
+        },
+        {
+          "type": "rust",
+          "style": "plain",
+          "foreground": "p:peach",
+          "template": "\ue7a8 \{{ .Full }} ",
+          "options": {
+            "display_mode": "files"
+          }
+        },
+        {
+          "type": "nix-shell",
+          "style": "plain",
+          "foreground": "p:sky",
+          "template": "\uf313 \{{ .Type }} "
+        },
+        {
+          "type": "text",
+          "style": "plain",
+          "foreground": "p:muted",
+          "template": "\{{ if gt .Jobs 0 }}\u2726\{{ .Jobs }} \{{ end }}"
+        },
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "p:muted",
+          "template": "\{{ .FormattedMs }} ",
+          "options": {
+            "threshold": 500,
+            "style": "austin"
+          }
+        },
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "p:red",
+          "template": "\u2718 \{{ reason .Code }} ",
+          "options": {
+            "always_enabled": false
+          }
+        },
+        {
+          "type": "root",
+          "style": "plain",
+          "foreground": "p:yellow",
+          "template": "\uf0e7 "
+        }
+      ]
+    },
+    {
+      "type": "prompt",
+      "alignment": "left",
+      "newline": true,
+      "segments": [
+        {
+          "type": "text",
+          "style": "plain",
+          "foreground": "p:peach",
+          "foreground_templates": [
+            "\{{ if gt .Code 0 }}p:red\{{ end }}"
+          ],
+          "template": "\u276f"
+        }
+      ]
+    }
+  ],
+  "transient_prompt": {
+    "background": "transparent",
+    "foreground": "p:muted",
+    "template": "\u276f "
+  },
+  "secondary_prompt": {
+    "background": "transparent",
+    "foreground": "p:muted",
+    "template": "\u2026 "
+  }
+}

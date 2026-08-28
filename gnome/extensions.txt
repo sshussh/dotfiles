@@ -5,16 +5,19 @@
 # Shell: GNOME Shell 50.4
 
 # uuid	state	name	source
+Vitals@CoreCoding.com	enabled	Vitals	user
 appindicatorsupport@rgcjonas.gmail.com	enabled	AppIndicator and KStatusNotifierItem Support	user
 blur-my-shell@aunetx	enabled	Blur my Shell	user
 clipboard-indicator@tudmotu.com	enabled	Clipboard Indicator	user
+compiz-alike-magic-lamp-effect@hermes83.github.com	installed	Compiz alike magic lamp effect	user
 dash-to-dock@micxgx.gmail.com	enabled	Dash to Dock	user
 dash-to-panel@jderose9.github.com	installed	Dash to Panel	user
 ding@rastersoft.com	installed	Desktop Icons NG (DING)	user
 gamemodeshellextension@trsnaqe.com	enabled	GameMode Shell Extension	user
-gsconnect@andyholmes.github.io	enabled	GSConnect	user
+gsconnect@andyholmes.github.io	installed	GSConnect	user
 hanabi-extension@jeffshee.github.io	installed	Hanabi Extension	user
-systemMonitor@gnome-shell-extensions.gcampax.github.com	enabled	SystemMonitor	user
+systemMonitor@gnome-shell-extensions.gcampax.github.com	installed	SystemMonitor	user
+user-accent-colors@fabito02	installed	ChromaLeon	user
 apps-menu@gnome-shell-extensions.gcampax.github.com	installed	Apps Menu	system
 auto-move-windows@gnome-shell-extensions.gcampax.github.com	installed	Auto Move Windows	system
 drive-menu@gnome-shell-extensions.gcampax.github.com	installed	Removable Drive Menu	system
@@ -24,7 +27,7 @@ native-window-placement@gnome-shell-extensions.gcampax.github.com	installed	Nati
 places-menu@gnome-shell-extensions.gcampax.github.com	installed	Places Status Indicator	system
 screenshot-window-sizer@gnome-shell-extensions.gcampax.github.com	installed	Screenshot Window Sizer	system
 status-icons@gnome-shell-extensions.gcampax.github.com	installed	Status Icons	system
-system-monitor@gnome-shell-extensions.gcampax.github.com	enabled	System Monitor	system
+system-monitor@gnome-shell-extensions.gcampax.github.com	installed	System Monitor	system
 user-theme@gnome-shell-extensions.gcampax.github.com	enabled	User Themes	system
 window-list@gnome-shell-extensions.gcampax.github.com	installed	Window List	system
 windowsNavigator@gnome-shell-extensions.gcampax.github.com	installed	Window Navigator	system

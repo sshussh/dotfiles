@@ -16,20 +16,19 @@ cursor-style-blink = true
 # Scrollback
 scrollback-limit = 3023
 
-# Terminal features
+# Terminal behavior
 mouse-hide-while-typing = true
-copy-on-select = true
+# Copy every selection to both the primary selection and system clipboard.
+copy-on-select = clipboard
 confirm-close-surface = false
 
-# Disable in-app Ghostty toast notifications
-app-notifications = false
+# Show the in-app toast after copying a selection.
+app-notifications = clipboard-copy
 
-# Key bindings for common actions
-#keybind = ctrl+c=copy_to_clipboard
-#keybind = ctrl+v=paste_from_clipboard
+# Key bindings
 keybind = ctrl+shift+n=new_window
 keybind = ctrl+shift+t=new_tab
-keybind = ctrl+shift+w=close_tab
+keybind = ctrl+shift+w=close_surface
 keybind = ctrl+plus=increase_font_size:1
 keybind = ctrl+minus=decrease_font_size:1
 keybind = ctrl+zero=reset_font_size
@@ -42,16 +41,14 @@ keybind = ctrl+shift+==equalize_splits
 unfocused-split-opacity = 0.8
 # unfocused-split-fill = #44464f
 
-# Tab configuration
-# gtk-titlebar = true
 
 # Shell integration
 shell-integration = detect
 shell-integration-features = cursor,sudo,title,no-cursor
 keybind = shift+enter=text:\n
 
-# Rando stuff
+# Application behavior
 gtk-single-instance = true
 
-# Dank color generation
+# Generated color theme
 theme = matugen
