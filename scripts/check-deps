@@ -39,6 +39,13 @@ repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
+# A stale paru-bin can exist on PATH but fail to start after a pacman/libalpm
+# soname bump (libalpm.so.15 vs .16).
+paru_works() {
+  has_cmd paru || return 1
+  paru --version >/dev/null 2>&1
+}
+
 has_font() {
   has_cmd fc-list || return 1
   # Do not pipe fc-list into grep -q: SIGPIPE + pipefail looks like a miss.
@@ -51,7 +58,7 @@ has_py() {
 }
 
 pkg_manager=""
-if has_cmd paru; then
+if paru_works; then
   pkg_manager=paru
 elif has_cmd pacman; then
   pkg_manager=pacman
@@ -256,6 +263,17 @@ for spec in "${specs[@]}"; do
   if [[ "$id" == paru ]] && ! has_cmd pacman; then
     continue
   fi
+  if [[ "$id" == paru ]]; then
+    if paru_works; then
+      printf '  OK    %s\n' "$label"
+      present+=("$id")
+    else
+      printf '  MISS  %s\n' "$label"
+      missing_ids+=("$id")
+      missing_recommended+=("$id")
+    fi
+    continue
+  fi
   if probe_ok "$kind" "$probe"; then
     printf '  OK    %s\n' "$label"
     present+=("$id")
@@ -420,11 +438,16 @@ else
 fi
 
 bootstrap_paru() {
-  echo "Installing paru from the AUR (paru-bin)..."
-  sudo pacman -S --needed git base-devel
+  echo "Building paru from source so it links against this system's libalpm..."
+  sudo pacman -S --needed git base-devel rust
+  if pacman -Qq paru-bin >/dev/null 2>&1; then
+    sudo pacman -Rdd --noconfirm paru-bin
+  elif pacman -Qq paru >/dev/null 2>&1 && ! paru_works; then
+    sudo pacman -Rdd --noconfirm paru
+  fi
   local dir
-  dir="$(mktemp -d "${TMPDIR:-/tmp}/paru-bin.XXXXXX")"
-  git clone --depth=1 https://aur.archlinux.org/paru-bin.git "$dir"
+  dir="$(mktemp -d "${TMPDIR:-/tmp}/paru.XXXXXX")"
+  git clone --depth=1 https://aur.archlinux.org/paru.git "$dir"
   if (( yes )); then
     (cd "$dir" && makepkg -si --needed --noconfirm)
   else
@@ -433,10 +456,14 @@ bootstrap_paru() {
   rm -rf "$dir"
   hash -r
   pkg_manager=paru
+  if ! paru_works; then
+    echo "check-deps: paru still cannot run after the rebuild" >&2
+    return 1
+  fi
 }
 
 if (( do_install )); then
-  if (( needs_paru )) && has_cmd pacman && ! has_cmd paru; then
+  if (( needs_paru )) && has_cmd pacman && ! paru_works; then
     bootstrap_paru
     collect_packages
     set_install_cmd
