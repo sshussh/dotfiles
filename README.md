@@ -1,8 +1,11 @@
 # Dotfiles
 
-This repository uses GNU Stow. Every package is rooted at `.config`, so the
-default deployment target is the home directory only to reach `~/.config`.
-It does not put application configuration files directly in `$HOME`.
+This repository uses GNU Stow with `--no-folding`. Each package mirrors the
+path it should occupy under `$HOME`, so `~/.config/ghostty/config` is stored as
+`terminal/.config/ghostty/config`. Stow creates those parent directories as
+real directories and links only the files this repo owns. Application-generated
+files next to them (GTK bookmarks, OpenRGB logs, Matugen palettes) stay on the
+machine and out of git.
 
 ```sh
 git clone git@github.com:sshussh/dotfiles.git ~/.dotfiles
@@ -10,60 +13,67 @@ cd ~/.dotfiles
 ./install.sh
 ```
 
-The only intentional links outside `~/.config` are in the `matugen` package:
+`./install.sh` restows the packages below, enables `matugen-wallpaper.service`,
+loads the sanitized GNOME dconf snapshot, and generates a palette from the
+current wallpaper.
 
-- `~/.local/bin/matugen-wallpaper` and `matugen-helium-browser`, so the user
-  service and desktop launcher can execute them;
-- `~/.local/share/themes/Matugen`, `icons/Matugen`, and
-  `applications/helium.desktop`, because GNOME discovers those assets through
-  the XDG data directory.
+On a machine that already has regular files at these paths, preview first:
+
+```sh
+./install.sh --simulate
+```
+
+Then replace the conflicting files with Stow links (a timestamped copy is
+written under `~/.cache/dotfiles-stow-backup-*`):
+
+```sh
+./install.sh --force
+```
+
+Do **not** use Stow `--adopt`. Adoption copies whatever is already on the
+machine into this public repository, including SSH metadata and generated
+palettes.
 
 ## Packages
 
 | Package | Deploys |
 | --- | --- |
-| `gnome-desktop` | GTK overrides, desktop associations, user directories, monitor layout, OpenRGB and Remmina autostart, pavucontrol, and the Matugen user service |
-| `matugen` | Matugen configuration, templates, generated GNOME theme and Nautilus folder-icon assets, and required XDG discovery links |
-| `terminal` | Fish, Zsh, Ghostty, btop, and Fastfetch |
-| `zed` | Zed settings, keymap, tasks, and themes |
+| `zsh-bootstrap` | `~/.zshenv`, which sets `ZDOTDIR` so the rest of zsh lives under `~/.config/zsh` |
+| `gnome-desktop` | GTK CSS wrappers, desktop associations, user directories, autostart, pavucontrol, session PATH, and the Matugen user service |
+| `matugen` | Matugen configuration and templates, helper commands, and XDG discovery links for the generated theme/icons/Helium launcher |
+| `terminal` | Fish, Zsh, Ghostty, btop, Neovim |
+| `zed` | Zed settings, keymap, tasks, and the static Dank theme |
 | `hardware` | OpenRGB profiles and Qt preference files |
-| `steam` | AdwSteamGtk custom CSS |
+
+`~/.zshenv` comes from `zsh-bootstrap`. After stowing, `install.sh` also
+creates relative discovery links (not Stow links) so GNOME can find generated
+assets without folding those directories into git:
+
+- `~/.local/bin/matugen-wallpaper` and `matugen-helium-browser`
+- `~/.local/share/themes/Matugen`, `icons/Matugen`, and `applications/helium.desktop`
+
+Those point at `~/.config/matugen/...`, where Stow-managed sources sit next to
+Matugen-generated palettes.
+
+Generated palettes (GTK `matugen.css`, Ghostty/Zed/btop/fastfetch/Spicetify
+themes, folder SVGs, GNOME Shell CSS) are **not** versioned. `matugen-wallpaper`
+creates them as regular files after install.
 
 ## GNOME settings
 
-GNOME is reproduced from a sanitized `dconf` snapshot in `gnome/dconf/`,
-not from the binary `~/.config/dconf/user` database. `./install.sh` loads
-it after stowing. See `gnome/README.md` for the restore steps, extension
-list, and how to refresh the export.
+GNOME is reproduced from a sanitized `dconf` snapshot in `gnome/dconf/`, not
+from the binary `~/.config/dconf/user` database. `./install.sh` loads it after
+stowing. See `gnome/README.md` for the restore steps, extension list, and how
+to refresh the export.
+
+Monitor layout is machine-local (`~/.config/monitors.xml`) and is not stowed.
 
 ## Intentional exclusions
 
 This is a public, credential-free configuration repository. It excludes browser
 profiles, Discord, mail clients, Codex state, the binary dconf user database,
 connection databases, credentials, history files, caches, logs, backups,
-generated menus, nested Git metadata, and machine-session data. No Btrfs
-Assistant user configuration was present to include; `connections.db` was
-excluded because it is an opaque database and may contain remote/session
-information. The GNOME dump also strips wallpaper URIs, window sizes,
-file-chooser last paths, NetworkManager EAP entries, remote-desktop
+generated menus, nested Git metadata, machine-session data, Zed SSH hosts, and
+wallpaper-derived palettes. The GNOME dump also strips wallpaper URIs, window
+sizes, file-chooser last paths, NetworkManager EAP entries, remote-desktop
 certificate paths, and location coordinates.
-
-The live Nautilus configuration directory currently contains no regular user
-preference files. Its Matugen folder-icon theme is included in the `matugen`
-package instead.
-
-## Adopting an existing machine
-
-On a machine that already has regular files at these paths, review the dry run
-first:
-
-```sh
-DOTFILES_TARGET="$HOME" ./install.sh --simulate
-```
-
-Do **not** use `--adopt` against this public repository: adoption can pull
-intentionally excluded local-only data, such as saved SSH connection metadata,
-back into the repository. Merge or back up existing conflicting settings
-locally, then run `./install.sh`. GNU Stow links the managed paths into this
-repository; it does not create loose application configuration files in
-`$HOME`.

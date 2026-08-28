@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Remove conflicting regular files and stray symlinks so GNU Stow can deploy.
+
+Only touches destination paths that a package actually owns. Directories,
+unrelated files, and already-correct links are left alone.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import shutil
+import sys
+
+
+SKIP_DIRS = {".git", "__pycache__"}
+SKIP_NAMES = {".stow-local-ignore", ".gitignore", ".gitattributes"}
+
+
+def die(msg: str) -> None:
+    print(f"replace-existing: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def owned_entries(package_root: Path) -> list[Path]:
+    entries: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(package_root, followlinks=False):
+        keep: list[str] = []
+        for name in dirnames:
+            if name in SKIP_DIRS:
+                continue
+            path = Path(dirpath) / name
+            if path.is_symlink():
+                entries.append(path)
+            else:
+                keep.append(name)
+        dirnames[:] = keep
+        for name in filenames:
+            if name in SKIP_NAMES or name.endswith(".pyc"):
+                continue
+            entries.append(Path(dirpath) / name)
+    return entries
+
+
+def already_linked(destination: Path, source: Path) -> bool:
+    if not destination.is_symlink():
+        return False
+    try:
+        return destination.resolve() == source.resolve()
+    except OSError:
+        return False
+
+
+def backup_path(destination: Path, backup_root: Path, target_dir: Path) -> None:
+    relative = destination.relative_to(target_dir)
+    stored = backup_root / relative
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink() or destination.is_file():
+        shutil.copy2(destination, stored, follow_symlinks=False)
+    else:
+        die(f"refusing to back up unexpected path type: {destination}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", required=True, type=Path)
+    parser.add_argument("--repo", required=True, type=Path)
+    parser.add_argument("--backup", type=Path)
+    parser.add_argument("packages", nargs="+")
+    args = parser.parse_args()
+
+    target_dir = args.target.expanduser().resolve()
+    repo = args.repo.expanduser().resolve()
+    if not repo.is_dir():
+        die(f"repo is not a directory: {repo}")
+
+    removed = 0
+    skipped = 0
+    for package in args.packages:
+        package_root = repo / package
+        if not package_root.is_dir():
+            die(f"missing package: {package_root}")
+        for source in owned_entries(package_root):
+            relative = source.relative_to(package_root)
+            destination = target_dir / relative
+            if not destination.exists() and not destination.is_symlink():
+                skipped += 1
+                continue
+            if already_linked(destination, source):
+                skipped += 1
+                continue
+            if destination.is_dir() and not destination.is_symlink():
+                die(
+                    f"refusing to replace directory {destination} "
+                    f"with package file {relative}"
+                )
+            if args.backup is not None:
+                backup_path(destination, args.backup, target_dir)
+            destination.unlink()
+            print(f"removed {destination}")
+            removed += 1
+
+    print(f"replace-existing: removed {removed} path(s), {skipped} already clear")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

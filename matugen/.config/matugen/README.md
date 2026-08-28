@@ -20,6 +20,8 @@ Integrated targets:
   loader; the browser must reload its UI stylesheet (normally on restart) to
   display a freshly generated palette
 - Steam through AdwSteamGtk custom CSS; Steam may need a natural restart
+- Spotify through a dedicated Spicetify `Matugen` theme, with wallpaper-derived
+  Spotify surfaces, accents, and a restrained three-color background aurora
 
 The generated outputs are written to `.new` files, validated, and renamed over
 their final paths atomically. Existing Ghostty, Zed, and btop configuration was
@@ -29,11 +31,11 @@ backed up before their single theme-selection lines were changed.
 
 All Matugen-owned configuration, templates, generated GNOME theme/icon assets,
 launch helpers, and the Helium launcher source live below `~/.config/matugen`.
-GNOME and the desktop specification require their discovery paths under
-`~/.local/share`, and the shell/service require helper commands on
-`~/.local/bin`; those locations are symlinks to the files in this directory.
-The Matugen executable itself remains on `~/.local/bin` and transient palette
-state remains under `~/.cache/matugen` by design.
+`./install.sh` then creates relative symlinks under `~/.local/bin` and
+`~/.local/share` so GNOME can discover the generated theme, icons, and Helium
+launcher without Stow folding those directories into git. The Matugen
+executable itself remains on `~/.local/bin` and transient palette state remains
+under `~/.cache/matugen` by design.
 
 Useful commands:
 
@@ -74,6 +76,15 @@ GTK monitors the active icon theme for content changes, so open Nautilus windows
 should refresh when a wallpaper produces new SVGs. If one window keeps a stale
 folder icon, close and reopen Nautilus once; the watcher never quits it
 automatically because that would close active tabs and file-operation windows.
+
+Spicetify's `Matugen` theme is stored under
+`~/.config/spicetify/Themes/Matugen`; it is generated on every successful
+wallpaper update. Matugen always runs one non-launching `spicetify refresh`
+after both theme files commit, so Spotify will have the latest palette when it
+opens later. If Spotify is already open, the same update also performs one
+normal restart instead of one reload per theme file. The first `spicetify apply`
+also restarts Spotify; all later refreshes leave the packaged Spotify UI
+unmodified.
 
 Helium's browser chrome follows Matugen's source color through its native
 Chromium custom-theme setting. The watcher updates it while Helium is closed;

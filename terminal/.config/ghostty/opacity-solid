@@ -1,4 +1,0 @@
-# Fully opaque background — swap main config include to this file when presenting
-# or when transparency looks wrong.
-
-background-opacity = 1

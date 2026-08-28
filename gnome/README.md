@@ -34,15 +34,15 @@ dump.
    ./install.sh
    ```
 
-   That stows the packages and loads these dconf files. To load settings
-   only:
+   That stows the packages, loads these dconf files, and generates a
+   Matugen palette from the current wallpaper. To load settings only:
 
    ```sh
    ./scripts/load-gnome
    ```
 
 4. Log out and back in so GNOME Shell reloads extensions and keybindings.
-5. Generate the theme from a wallpaper:
+5. If install could not see a wallpaper, generate the theme afterwards:
 
    ```sh
    matugen-wallpaper /path/to/wallpaper.jpg

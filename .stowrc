@@ -1,0 +1,3 @@
+--no-folding
+--ignore=__pycache__
+--ignore=\.pyc$
