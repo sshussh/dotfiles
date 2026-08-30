@@ -6,4 +6,4 @@ Name=OpenRGB
 StartupNotify=true
 Terminal=false
 Type=Application
-Exec=/usr/bin/openrgb --startminimized --server
+Exec=/usr/bin/openrgb --startminimized

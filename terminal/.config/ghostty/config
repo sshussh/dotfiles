@@ -6,7 +6,7 @@ window-decoration = true
 window-padding-x = 10
 window-padding-y = 10
 background-opacity = 0.9
-background-blur-radius = 20
+background-blur-radius = 100
 background-blur = true
 
 # Cursor Configuration
@@ -51,4 +51,4 @@ keybind = shift+enter=text:\n
 gtk-single-instance = true
 
 # Generated color theme
-theme = matugen
+theme = dankcolors

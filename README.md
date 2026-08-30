@@ -48,7 +48,7 @@ palettes.
 | `zsh-bootstrap` | `~/.zshenv`, which sets `ZDOTDIR` so the rest of zsh lives under `~/.config/zsh` |
 | `gnome-desktop` | GTK CSS wrappers, desktop associations, user directories, autostart, pavucontrol, session PATH, and the Matugen user service |
 | `matugen` | Matugen configuration and templates, helper commands, and XDG discovery links for the generated theme/icons/Helium launcher |
-| `terminal` | Fish, Zsh, Ghostty, btop, Neovim |
+| `terminal` | Fish, Zsh, Ghostty (including the static Dank theme), btop, Neovim |
 | `zed` | Zed settings, keymap, tasks, and the static Dank theme |
 | `hardware` | OpenRGB profiles and Qt preference files |
 
@@ -62,9 +62,10 @@ assets without folding those directories into git:
 Those point at `~/.config/matugen/...`, where Stow-managed sources sit next to
 Matugen-generated palettes.
 
-Generated palettes (GTK `matugen.css`, Ghostty/Zed/btop/fastfetch/Spicetify
-themes, folder SVGs, GNOME Shell CSS) are **not** versioned. `matugen-wallpaper`
-creates them as regular files after install.
+Generated palettes (GTK `matugen.css`, the Matugen Ghostty/Zed/btop/fastfetch/
+Spicetify themes, folder SVGs, GNOME Shell CSS) are **not** versioned.
+`matugen-wallpaper` creates them as regular files after install. The static
+Ghostty `dankcolors` and Zed Dank themes are versioned separately.
 
 ## GNOME settings
 
