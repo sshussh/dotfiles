@@ -136,6 +136,12 @@ DMS_GENERATED_FILES = {
     "zed": ((CONFIG_HOME / "zed" / "themes" / "dank-zed-theme.json", "zed"),),
 }
 
+VSCODE_THEME_FILENAMES = {
+    "dankshell-default.json",
+    "dankshell-dark.json",
+    "dankshell-light.json",
+}
+
 LEGACY_GENERATED_FILES = tuple(path.with_name(f"{path.name}.new") for path, _ in CUSTOM_GENERATED_FILES) + (
     CONFIG_HOME / "gtk-3.0" / "matugen.css",
     CONFIG_HOME / "gtk-3.0" / "matugen.css.new",
@@ -207,6 +213,68 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"Expected a JSON object in {path}")
     return value
+
+
+def load_jsonc_text(text: str) -> Any:
+    """Parse JSON with JavaScript-style comments and trailing commas."""
+    output: list[str] = []
+    index = 0
+    in_string = False
+    escaped = False
+    while index < len(text):
+        character = text[index]
+        following = text[index + 1] if index + 1 < len(text) else ""
+        if in_string:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            index += 1
+            continue
+        if character == '"':
+            in_string = True
+            output.append(character)
+            index += 1
+            continue
+        if character == "/" and following == "/":
+            index += 2
+            while index < len(text) and text[index] not in "\r\n":
+                index += 1
+            continue
+        if character == "/" and following == "*":
+            index += 2
+            while index + 1 < len(text) and text[index : index + 2] != "*/":
+                if text[index] in "\r\n":
+                    output.append(text[index])
+                index += 1
+            index += 2
+            continue
+        output.append(character)
+        index += 1
+    without_comments = "".join(output)
+    without_trailing_commas = re.sub(r",(?=\s*[}\]])", "", without_comments)
+    return json.loads(without_trailing_commas)
+
+
+def dms_vscode_theme_files() -> tuple[Path, ...]:
+    """Return DMS theme files from VS Code-compatible extension roots."""
+    roots = (
+        USER_HOME / ".vscode" / "extensions",
+        USER_HOME / ".vscode-oss" / "extensions",
+        USER_HOME / ".cursor" / "extensions",
+    )
+    files: list[Path] = []
+    for root in roots:
+        for extension in sorted(root.glob("danklinux.dms-theme-*")):
+            themes = extension / "themes"
+            for name in sorted(VSCODE_THEME_FILENAMES):
+                path = themes / name
+                if path not in files:
+                    files.append(path)
+    return tuple(files)
 
 
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
@@ -700,6 +768,7 @@ class WallpaperPalette:
             "ghostty": 250,
             "kitty": 40,
             "zed": 2_000,
+            "vscode": 2_000,
             "btop": 500,
             "ohmyposh": 2_000,
             "zsh": 300,
@@ -719,6 +788,11 @@ class WallpaperPalette:
         generated_files = dict(CUSTOM_GENERATED_FILES)
         for target in detected_targets:
             generated_files.update(DMS_GENERATED_FILES.get(target, ()))
+        if "vscode" in detected_targets:
+            vscode_files = dms_vscode_theme_files()
+            if not vscode_files:
+                raise RuntimeError("DMS detected VS Code/VSCodium but its theme extension files are missing")
+            generated_files.update((path, "vscode") for path in vscode_files)
 
         for path, kind in generated_files.items():
             if not path.is_file() or path.stat().st_size < minimum_sizes[kind]:
@@ -765,6 +839,13 @@ class WallpaperPalette:
                     json.loads(text)
                 except json.JSONDecodeError as error:
                     raise RuntimeError(f"Generated JSON is invalid: {path}: {error}") from error
+            if kind == "vscode":
+                try:
+                    vscode_theme = load_jsonc_text(text)
+                except json.JSONDecodeError as error:
+                    raise RuntimeError(f"Generated VSCodium theme is invalid JSONC: {path}: {error}") from error
+                if not isinstance(vscode_theme, dict) or not isinstance(vscode_theme.get("colors"), dict) or not isinstance(vscode_theme.get("tokenColors"), list):
+                    raise RuntimeError(f"Generated VSCodium theme is incomplete: {path}")
             if kind == "spicetify-ini":
                 parser = configparser.ConfigParser(interpolation=None)
                 try:

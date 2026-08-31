@@ -96,6 +96,7 @@ pkg_for() {
         gnome-shell-extensions) echo gnome-shell-extensions ;;
         ghostty) echo ghostty ;;
         zed) echo zed ;;
+        vscodium) echo vscodium-bin ;;
         openrgb) echo openrgb ;;
         fish) echo fish ;;
         ffmpeg) echo ffmpeg ;;
@@ -219,6 +220,7 @@ specs=(
   "kitty|recommended|cmd|kitty|Kitty"
   "niri|recommended|cmd|niri|Niri"
   "zed|recommended|cmd-any|zeditor,zed|Zed"
+  "vscodium|recommended|cmd|codium|VSCodium"
   "openrgb|recommended|cmd|openrgb|OpenRGB"
   "fish|recommended|cmd|fish|Fish"
   "ffmpeg|recommended|cmd|ffmpeg|FFmpeg (live-wallpaper frames)"

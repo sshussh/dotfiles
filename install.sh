@@ -11,6 +11,7 @@ packages=(
   matugen
   terminal
   zed
+  vscodium
   hardware
   zsh-bootstrap
 )
@@ -202,6 +203,14 @@ fi
 
 if [ "$target_dir" != "$HOME" ]; then
   exit 0
+fi
+
+dms_vscode_vsix="/usr/share/quickshell/dms/matugen/dms-theme.vsix"
+if command -v codium >/dev/null 2>&1 && [[ -f "$dms_vscode_vsix" ]]; then
+  echo "Installing the bundled DMS dynamic theme for VSCodium..."
+  if ! codium --install-extension "$dms_vscode_vsix" --force; then
+    echo "install.sh: VSCodium's DMS theme extension could not be installed" >&2
+  fi
 fi
 
 if command -v systemctl >/dev/null 2>&1 && [ -n "${XDG_RUNTIME_DIR:-}" ]; then
