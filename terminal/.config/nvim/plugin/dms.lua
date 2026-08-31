@@ -1,5 +1,5 @@
--- Reload the generated palette after a wallpaper change without disturbing buffers.
-local colorscheme = vim.fn.expand("~/.config/matugen/runtime/vim/colors/matugen.vim")
+-- Reload DMS's generated palette after a wallpaper change without disturbing buffers.
+local colorscheme = vim.fn.expand("~/.config/nvim/colors/dms.lua")
 local colors_dir = vim.fn.fnamemodify(colorscheme, ":h")
 
 if vim.fn.filereadable(colorscheme) ~= 1 or not vim.uv or not vim.uv.new_fs_event then
@@ -20,7 +20,7 @@ local function reload_palette()
   vim.schedule(function()
     pending = false
     if vim.fn.filereadable(colorscheme) == 1 then
-      pcall(vim.cmd.colorscheme, "matugen")
+      pcall(vim.cmd.colorscheme, "dms")
       vim.cmd("redraw")
     end
   end)
@@ -37,7 +37,7 @@ if not started then
   return
 end
 
-_G.matugen_nvim_palette_watcher = watcher
+_G.dms_nvim_palette_watcher = watcher
 vim.api.nvim_create_autocmd("VimLeavePre", {
   callback = function()
     if not watcher:is_closing() then

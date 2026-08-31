@@ -232,6 +232,6 @@
     "dark": "Catppuccin Latte",
   },
   "telemetry": { "diagnostics": false, "metrics": false },
-  "theme": { "mode": "dark", "light": "Matugen Light", "dark": "Matugen Dark" },
+  "theme": { "mode": "system", "light": "DankShell Light", "dark": "DankShell Dark" },
   "context_servers": {},
 }

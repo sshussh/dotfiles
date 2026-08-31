@@ -6,6 +6,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
+ExecCondition=/bin/sh -c 'case ":${XDG_CURRENT_DESKTOP:-}:" in *:GNOME:*) exit 0 ;; *) exit 1 ;; esac'
 ExecStart=%h/.local/bin/matugen-wallpaper --watch
 Restart=on-failure
 RestartSec=2s
@@ -15,4 +16,3 @@ Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
 
 [Install]
 WantedBy=graphical-session.target
-

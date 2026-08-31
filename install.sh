@@ -98,6 +98,31 @@ fi
 
 backup_dir=""
 if (( ! simulate )); then
+  # Generated DMS files must be real files. Older revisions tracked two of
+  # them, so detach any stale Stow links before the generator writes again.
+  for generated_path in \
+    "$target_dir/.config/ghostty/themes/dankcolors" \
+    "$target_dir/.config/zed/themes/dank-zed-theme.json"; do
+    if [[ -L "$generated_path" ]]; then
+      link_target="$(readlink "$generated_path")"
+      if [[ "$link_target" = /* ]]; then
+        resolved_target="$(realpath -m "$link_target")"
+      else
+        resolved_target="$(realpath -m "$(dirname "$generated_path")/$link_target")"
+      fi
+      if [[ "$resolved_target" == "$repo_dir"/* ]]; then
+        preserved_path="${generated_path}.dms-migrate.$$"
+        if [[ -f "$generated_path" ]]; then
+          cp -L -- "$generated_path" "$preserved_path"
+        fi
+        unlink "$generated_path"
+        if [[ -f "$preserved_path" ]]; then
+          mv -- "$preserved_path" "$generated_path"
+        fi
+      fi
+    fi
+  done
+
   # Directory-level folds (a symlink at OpenRGB/, matugen/, fish/functions/, ...)
   # make Stow report "existing target is not owned by stow" and abort. Turn
   # those into real directories before linking files with --no-folding.
@@ -164,6 +189,16 @@ if (( simulate )); then
 fi
 
 ensure_xdg_links "$target_dir"
+
+# DMS owns GTK's generated imports. Drop the obsolete pre-DMS import once so
+# GTK4 does not parse two complete wallpaper palettes on every application start.
+gtk4_css="$target_dir/.config/gtk-4.0/gtk.css"
+if [[ -f "$gtk4_css" && ! -L "$gtk4_css" ]]; then
+  sed -i \
+    -e '/Matugen owns only the imported file/d' \
+    -e '/@import url("matugen\.css");/d' \
+    "$gtk4_css"
+fi
 
 if [ "$target_dir" != "$HOME" ]; then
   exit 0

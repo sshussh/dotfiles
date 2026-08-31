@@ -22,10 +22,20 @@ matugen/.config/matugen/runtime/zsh/
 # Generated palettes written next to source configs
 gnome-desktop/.config/gtk-3.0/matugen.css
 gnome-desktop/.config/gtk-4.0/matugen.css
+gnome-desktop/.config/gtk-3.0/dank-colors.css
+gnome-desktop/.config/gtk-4.0/dank-colors.css
+gnome-desktop/.config/gtk-3.0/gtk.css
+gnome-desktop/.config/gtk-4.0/gtk.css
 gnome-desktop/.config/monitors.xml
 gnome-desktop/.config/monitors.xml~
 terminal/.config/btop/themes/
 terminal/.config/fastfetch/config.jsonc
 terminal/.config/zsh/prompt.json
 terminal/.config/fish/fish_variables
+terminal/.config/ghostty/themes/dankcolors
+terminal/.config/kitty/dank-theme.conf
+terminal/.config/kitty/dank-tabs.conf
+terminal/.config/nvim/colors/dms.lua
+terminal/.config/nvim/lua/lualine/themes/dms.lua
 zed/.config/zed/themes/matugen.json
+zed/.config/zed/themes/dank-zed-theme.json

@@ -16,150 +16,126 @@ cyan = { color = '#8be9fd', blend = true }
 
 [templates.palette-state]
 input_path = '~/.config/matugen/templates/palette-state.json'
-output_path = '~/.cache/matugen/palette.json.new'
-index = 10
-
-[templates.gtk3]
-input_path = '~/.config/matugen/templates/gtk-colors.css'
-output_path = '~/.config/gtk-3.0/matugen.css.new'
-index = 20
-
-[templates.gtk4]
-input_path = '~/.config/matugen/templates/gtk-colors.css'
-output_path = '~/.config/gtk-4.0/matugen.css.new'
-index = 21
-
-[templates.ghostty]
-input_path = '~/.config/matugen/templates/ghostty.conf'
-output_path = '~/.config/ghostty/themes/matugen.new'
-index = 30
-
-[templates.zed]
-input_path = '~/.config/matugen/templates/zed.json'
-output_path = '~/.config/zed/themes/matugen.json.new'
-index = 40
+output_path = '~/.cache/matugen/palette.json'
+index = 10000
+post_hook = 'sh -c "test \"${MATUGEN_WALLPAPER_ACTIVE:-0}\" = 1 || \"$HOME/.local/bin/matugen-wallpaper\" --postprocess-only"'
 
 [templates.btop]
 input_path = '~/.config/matugen/templates/btop.theme'
-output_path = '~/.config/btop/themes/matugen.theme.new'
+output_path = '~/.config/btop/themes/matugen.theme'
 index = 50
 
 [templates.oh-my-posh]
 input_path = '~/.config/matugen/templates/oh-my-posh.json'
-output_path = '~/.config/zsh/prompt.json.new'
+output_path = '~/.config/zsh/prompt.json'
 index = 52
 
 [templates.zsh-palette]
 input_path = '~/.config/matugen/templates/zsh-palette.zsh'
-output_path = '~/.config/matugen/runtime/zsh/prompt.zsh.new'
+output_path = '~/.config/matugen/runtime/zsh/prompt.zsh'
 index = 53
 
 [templates.fastfetch]
 input_path = '~/.config/matugen/templates/fastfetch.jsonc'
-output_path = '~/.config/fastfetch/config.jsonc.new'
+output_path = '~/.config/fastfetch/config.jsonc'
 index = 55
 
-[templates.zen]
-input_path = '~/.config/matugen/templates/zen.css'
-output_path = '~/.config/matugen/runtime/zen/matugen.css.new'
-index = 56
-
-[templates.vim]
-input_path = '~/.config/matugen/templates/vim.vim'
-output_path = '~/.config/matugen/runtime/vim/colors/matugen.vim.new'
-index = 58
+[templates.nvim]
+input_path = '~/.config/matugen/templates/nvim.lua'
+output_path = '~/.config/nvim/colors/dms.lua'
+index = 9058
 
 [templates.gnome-shell]
 input_path = '~/.config/matugen/templates/gnome-shell.css'
-output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css.new'
+output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css'
 index = 60
 
 [templates.adw-steam-gtk]
 input_path = '~/.config/matugen/templates/adw-steam-gtk.css'
-output_path = '~/.config/AdwSteamGtk/custom.css.new'
+output_path = '~/.config/AdwSteamGtk/custom.css'
 index = 70
 
 [templates.spicetify-colors]
 input_path = '~/.config/matugen/templates/spicetify-color.ini'
-output_path = '~/.config/spicetify/Themes/Matugen/color.ini.new'
+output_path = '~/.config/spicetify/Themes/Matugen/color.ini'
 index = 75
 
 [templates.spicetify-css]
 input_path = '~/.config/matugen/templates/spicetify-user.css'
-output_path = '~/.config/spicetify/Themes/Matugen/user.css.new'
+output_path = '~/.config/spicetify/Themes/Matugen/user.css'
 index = 76
 
 [templates.icon-folder]
 input_path = '~/.config/matugen/templates/icons/places/folder.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder.svg'
 index = 100
 
 [templates.icon-folder-documents]
 input_path = '~/.config/matugen/templates/icons/places/folder-documents.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-documents.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-documents.svg'
 index = 101
 
 [templates.icon-folder-download]
 input_path = '~/.config/matugen/templates/icons/places/folder-download.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-download.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-download.svg'
 index = 102
 
 [templates.icon-folder-drag-accept]
 input_path = '~/.config/matugen/templates/icons/places/folder-drag-accept.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-drag-accept.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-drag-accept.svg'
 index = 103
 
 [templates.icon-folder-music]
 input_path = '~/.config/matugen/templates/icons/places/folder-music.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-music.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-music.svg'
 index = 104
 
 [templates.icon-folder-pictures]
 input_path = '~/.config/matugen/templates/icons/places/folder-pictures.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-pictures.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-pictures.svg'
 index = 105
 
 [templates.icon-folder-publicshare]
 input_path = '~/.config/matugen/templates/icons/places/folder-publicshare.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-publicshare.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-publicshare.svg'
 index = 106
 
 [templates.icon-folder-remote]
 input_path = '~/.config/matugen/templates/icons/places/folder-remote.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-remote.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-remote.svg'
 index = 107
 
 [templates.icon-folder-templates]
 input_path = '~/.config/matugen/templates/icons/places/folder-templates.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-templates.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-templates.svg'
 index = 108
 
 [templates.icon-folder-videos]
 input_path = '~/.config/matugen/templates/icons/places/folder-videos.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/folder-videos.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/folder-videos.svg'
 index = 109
 
 [templates.icon-user-bookmarks]
 input_path = '~/.config/matugen/templates/icons/places/user-bookmarks.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/user-bookmarks.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-bookmarks.svg'
 index = 110
 
 [templates.icon-user-desktop]
 input_path = '~/.config/matugen/templates/icons/places/user-desktop.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/user-desktop.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-desktop.svg'
 index = 111
 
 [templates.icon-user-home]
 input_path = '~/.config/matugen/templates/icons/places/user-home.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/places/user-home.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/places/user-home.svg'
 index = 112
 
 [templates.icon-inode-directory]
 input_path = '~/.config/matugen/templates/icons/mimetypes/inode-directory.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/mimetypes/inode-directory.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/mimetypes/inode-directory.svg'
 index = 113
 
 [templates.icon-folder-open]
 input_path = '~/.config/matugen/templates/icons/places/folder.svg'
-output_path = '~/.local/share/icons/Matugen/scalable/status/folder-open.svg.new'
+output_path = '~/.local/share/icons/Matugen/scalable/status/folder-open.svg'
 index = 114

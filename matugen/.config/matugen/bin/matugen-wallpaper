@@ -34,8 +34,10 @@ LOG = logging.getLogger("matugen-wallpaper")
 USER_HOME = Path.home()
 CONFIG_HOME = USER_HOME / ".config"
 CACHE_HOME = USER_HOME / ".cache" / "matugen"
-MATUGEN = Path(os.environ["MATUGEN_BIN"]).expanduser() if os.environ.get("MATUGEN_BIN") else Path(shutil.which("matugen") or (USER_HOME / ".local" / "bin" / "matugen"))
-MATUGEN_CONFIG = CONFIG_HOME / "matugen" / "config.toml"
+DMS = Path(os.environ["DMS_BIN"]).expanduser() if os.environ.get("DMS_BIN") else Path(shutil.which("dms") or (USER_HOME / ".local" / "bin" / "dms"))
+DMS_SHELL_DIR = Path(os.environ.get("DMS_SHELL_DIR", "/usr/share/quickshell/dms")).expanduser()
+DMS_STATE_DIR = Path(os.environ.get("DMS_STATE_DIR", str(USER_HOME / ".cache" / "DankMaterialShell"))).expanduser()
+DMS_SETTINGS = CONFIG_HOME / "DankMaterialShell" / "settings.json"
 WATCH_STATE = CACHE_HOME / "watch-state.json"
 LOCK_FILE = CACHE_HOME / "apply.lock"
 ICON_THEME_HOME = USER_HOME / ".local" / "share" / "icons" / "Matugen"
@@ -45,12 +47,16 @@ HELIUM_SINGLETONS = tuple(HELIUM_CONFIG_HOME / name for name in ("SingletonLock"
 HELIUM_BACKUP = CONFIG_HOME / "matugen" / "backups" / "20260814-helium" / "Preferences.before-matugen"
 ZEN_CONFIG_HOME = CONFIG_HOME / "zen"
 ZEN_PROFILES = ZEN_CONFIG_HOME / "profiles.ini"
-ZEN_RUNTIME_CSS = CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css"
-ZEN_IMPORT_BEGIN = "/* BEGIN Matugen Zen import */"
-ZEN_IMPORT_END = "/* END Matugen Zen import */"
-ZEN_IMPORT = f"{ZEN_IMPORT_BEGIN}\n@import url(\"matugen.css\");\n{ZEN_IMPORT_END}\n"
+ZEN_RUNTIME_CSS = CONFIG_HOME / "DankMaterialShell" / "zen.css"
+ZEN_IMPORT_BEGIN = "/* BEGIN DMS Zen import */"
+ZEN_IMPORT_END = "/* END DMS Zen import */"
+ZEN_IMPORT = f"{ZEN_IMPORT_BEGIN}\n@import url(\"dank-colors.css\");\n{ZEN_IMPORT_END}\n"
+LEGACY_ZEN_IMPORT = re.compile(
+    r"/\* BEGIN Matugen Zen import \*/.*?/\* END Matugen Zen import \*/\n?",
+    re.DOTALL,
+)
 ZEN_USER_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);\n'
-VIM_RUNTIME = CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim"
+NVIM_THEME = CONFIG_HOME / "nvim" / "colors" / "dms.lua"
 SPICETIFY_THEME_HOME = CONFIG_HOME / "spicetify" / "Themes" / "Matugen"
 SPICETIFY_CONFIG = CONFIG_HOME / "spicetify" / "config-xpui.ini"
 HANABI_SCHEMA = "io.github.jeffshee.hanabi-extension"
@@ -88,33 +94,61 @@ if errors:
     raise SystemExit(1)
 """
 
-GENERATED_FILES = (
-    (CONFIG_HOME / "gtk-3.0" / "matugen.css.new", CONFIG_HOME / "gtk-3.0" / "matugen.css", "css"),
-    (CONFIG_HOME / "gtk-4.0" / "matugen.css.new", CONFIG_HOME / "gtk-4.0" / "matugen.css", "css"),
-    (CONFIG_HOME / "ghostty" / "themes" / "matugen.new", CONFIG_HOME / "ghostty" / "themes" / "matugen", "ghostty"),
-    (CONFIG_HOME / "zed" / "themes" / "matugen.json.new", CONFIG_HOME / "zed" / "themes" / "matugen.json", "zed"),
-    (CONFIG_HOME / "btop" / "themes" / "matugen.theme.new", CONFIG_HOME / "btop" / "themes" / "matugen.theme", "btop"),
-    (CONFIG_HOME / "zsh" / "prompt.json.new", CONFIG_HOME / "zsh" / "prompt.json", "ohmyposh"),
-    (CONFIG_HOME / "matugen" / "runtime" / "zsh" / "prompt.zsh.new", CONFIG_HOME / "matugen" / "runtime" / "zsh" / "prompt.zsh", "zsh"),
-    (CONFIG_HOME / "fastfetch" / "config.jsonc.new", CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
-    (CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new", ZEN_RUNTIME_CSS, "zen"),
-    (CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim.new", VIM_RUNTIME, "vim"),
-    (
-        USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css.new",
-        USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css",
-        "css",
+CUSTOM_GENERATED_FILES = (
+    (CONFIG_HOME / "btop" / "themes" / "matugen.theme", "btop"),
+    (CONFIG_HOME / "zsh" / "prompt.json", "ohmyposh"),
+    (CONFIG_HOME / "matugen" / "runtime" / "zsh" / "prompt.zsh", "zsh"),
+    (CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
+    (NVIM_THEME, "nvim"),
+    (USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css", "css"),
+    (CONFIG_HOME / "AdwSteamGtk" / "custom.css", "css"),
+    (SPICETIFY_THEME_HOME / "color.ini", "spicetify-ini"),
+    (SPICETIFY_THEME_HOME / "user.css", "spicetify-css"),
+    (CACHE_HOME / "palette.json", "palette"),
+) + tuple((ICON_THEME_HOME / directory / name, "svg") for directory, name in ICON_OUTPUTS)
+
+DMS_GENERATED_FILES = {
+    "gtk": (
+        (CONFIG_HOME / "gtk-3.0" / "dank-colors.css", "css"),
+        (CONFIG_HOME / "gtk-4.0" / "dank-colors.css", "css"),
     ),
-    (CONFIG_HOME / "AdwSteamGtk" / "custom.css.new", CONFIG_HOME / "AdwSteamGtk" / "custom.css", "css"),
-    (SPICETIFY_THEME_HOME / "color.ini.new", SPICETIFY_THEME_HOME / "color.ini", "spicetify-ini"),
-    (SPICETIFY_THEME_HOME / "user.css.new", SPICETIFY_THEME_HOME / "user.css", "spicetify-css"),
-    (CACHE_HOME / "palette.json.new", CACHE_HOME / "palette.json", "palette"),
-) + tuple(
-    (
-        ICON_THEME_HOME / directory / f"{name}.new",
-        ICON_THEME_HOME / directory / name,
-        "svg",
-    )
-    for directory, name in ICON_OUTPUTS
+    "niri": ((CONFIG_HOME / "niri" / "dms" / "colors.kdl", "niri"),),
+    "qt5ct": ((CONFIG_HOME / "qt5ct" / "colors" / "matugen.conf", "qt"),),
+    "qt6ct": ((CONFIG_HOME / "qt6ct" / "colors" / "matugen.conf", "qt"),),
+    "zenbrowser": ((ZEN_RUNTIME_CSS, "zen"),),
+    "vesktop": ((CONFIG_HOME / "vesktop" / "themes" / "dank-discord.css", "css"),),
+    "vencord": ((CONFIG_HOME / "Vencord" / "themes" / "dank-discord.css", "css"),),
+    "ghostty": ((CONFIG_HOME / "ghostty" / "themes" / "dankcolors", "ghostty"),),
+    "kitty": (
+        (CONFIG_HOME / "kitty" / "dank-theme.conf", "kitty"),
+        (CONFIG_HOME / "kitty" / "dank-tabs.conf", "kitty"),
+    ),
+    "nvim": (
+        (NVIM_THEME, "nvim"),
+        (CONFIG_HOME / "nvim" / "lua" / "lualine" / "themes" / "dms.lua", "lua"),
+    ),
+    "dgop": ((CONFIG_HOME / "dgop" / "colors.json", "json"),),
+    "kcolorscheme": (
+        (USER_HOME / ".local" / "share" / "color-schemes" / "DankMatugen.colors", "qt"),
+        (USER_HOME / ".local" / "share" / "color-schemes" / "DankMatugenLight.colors", "qt"),
+        (USER_HOME / ".local" / "share" / "color-schemes" / "DankMatugenDark.colors", "qt"),
+    ),
+    "zed": ((CONFIG_HOME / "zed" / "themes" / "dank-zed-theme.json", "zed"),),
+}
+
+LEGACY_GENERATED_FILES = tuple(path.with_name(f"{path.name}.new") for path, _ in CUSTOM_GENERATED_FILES) + (
+    CONFIG_HOME / "gtk-3.0" / "matugen.css",
+    CONFIG_HOME / "gtk-3.0" / "matugen.css.new",
+    CONFIG_HOME / "gtk-4.0" / "matugen.css",
+    CONFIG_HOME / "gtk-4.0" / "matugen.css.new",
+    CONFIG_HOME / "ghostty" / "themes" / "matugen",
+    CONFIG_HOME / "ghostty" / "themes" / "matugen.new",
+    CONFIG_HOME / "zed" / "themes" / "matugen.json",
+    CONFIG_HOME / "zed" / "themes" / "matugen.json.new",
+    CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css",
+    CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new",
+    CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim",
+    CONFIG_HOME / "matugen" / "runtime" / "vim" / "colors" / "matugen.vim.new",
 )
 
 GNOME_ACCENTS = {
@@ -184,6 +218,27 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
         os.fsync(stream.fileno())
     os.replace(temporary, path)
     path.chmod(0o600)
+
+
+def cleanup_legacy_theme_outputs() -> None:
+    """Remove superseded pre-DMS outputs only after the new set validates."""
+    for path in LEGACY_GENERATED_FILES:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as error:
+            LOG.warning("Could not remove obsolete theme output %s: %s", path, error)
+
+    gtk4_css = CONFIG_HOME / "gtk-4.0" / "gtk.css"
+    if not gtk4_css.is_file() or gtk4_css.is_symlink():
+        return
+    try:
+        existing = gtk4_css.read_text(encoding="utf-8")
+        cleaned = re.sub(r"^/\* Matugen owns only the imported file\..*?\*/\n?", "", existing, flags=re.MULTILINE)
+        cleaned = re.sub(r'^@import url\("matugen\.css"\);\n?', "", cleaned, flags=re.MULTILINE)
+        if cleaned != existing:
+            write_text_atomic(gtk4_css, cleaned)
+    except OSError as error:
+        LOG.warning("Could not remove GTK4's obsolete Matugen import: %s", error)
 
 
 def write_text_atomic(path: Path, value: str) -> None:
@@ -309,12 +364,13 @@ def zen_profiles() -> tuple[Path, ...]:
 
 
 def ensure_zen_import(profile: Path) -> bool:
-    """Install one stable import without modifying Zen Mods' generated CSS."""
+    """Install one stable DMS import without modifying Zen Mods' generated CSS."""
     chrome = profile / "chrome"
     user_chrome = chrome / "userChrome.css"
     try:
         chrome.mkdir(parents=True, exist_ok=True, mode=0o700)
         existing = user_chrome.read_text(encoding="utf-8") if user_chrome.exists() else ""
+        existing = LEGACY_ZEN_IMPORT.sub("", existing)
         if ZEN_IMPORT_BEGIN not in existing:
             if existing.startswith("@charset"):
                 newline = existing.find("\n")
@@ -338,7 +394,7 @@ def ensure_zen_import(profile: Path) -> bool:
 
 
 def apply_zen_theme() -> bool:
-    """Copy the generated Matugen UI palette to Zen's active profile(s)."""
+    """Copy DMS's generated UI palette to Zen's active profile(s)."""
     if not ZEN_RUNTIME_CSS.is_file():
         LOG.debug("Zen stylesheet has not been generated; skipping Zen synchronization")
         return False
@@ -352,16 +408,17 @@ def apply_zen_theme() -> bool:
     for profile in zen_profiles():
         if not ensure_zen_import(profile):
             continue
-        destination = profile / "chrome" / "matugen.css"
+        destination = profile / "chrome" / "dank-colors.css"
         try:
             current = destination.read_text(encoding="utf-8") if destination.exists() else None
             if current != stylesheet:
                 write_text_atomic(destination, stylesheet)
                 updated = True
+            (profile / "chrome" / "matugen.css").unlink(missing_ok=True)
         except OSError as error:
             LOG.warning("Could not update Zen palette for %s: %s", profile, error)
     if updated:
-        LOG.info("Updated Matugen stylesheet for Zen Browser; it applies on Zen's next UI stylesheet reload")
+        LOG.info("Updated DMS stylesheet for Zen Browser; it applies on Zen's next UI stylesheet reload")
     return updated
 
 
@@ -552,68 +609,128 @@ class WallpaperPalette:
 
     def prepare_directories(self) -> None:
         directories = {CACHE_HOME}
-        for temporary, final, _ in GENERATED_FILES:
-            directories.add(temporary.parent)
-            directories.add(final.parent)
+        for path, _ in CUSTOM_GENERATED_FILES:
+            directories.add(path.parent)
+        for outputs in DMS_GENERATED_FILES.values():
+            for path, _ in outputs:
+                directories.add(path.parent)
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True, mode=0o700)
 
-    def generate(self, palette_input: Path, mode: str) -> None:
-        if not MATUGEN.is_file():
-            raise FileNotFoundError(f"Matugen executable is missing: {MATUGEN}")
-        if not MATUGEN_CONFIG.is_file():
-            raise FileNotFoundError(f"Matugen configuration is missing: {MATUGEN_CONFIG}")
-        for temporary, _, _ in GENERATED_FILES:
-            temporary.unlink(missing_ok=True)
+    def dms_settings(self) -> dict[str, Any]:
+        if not DMS_SETTINGS.is_file():
+            return {}
+        try:
+            return load_json(DMS_SETTINGS)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            LOG.warning("Could not read DMS settings; using compatible defaults: %s", error)
+            return {}
 
-        scheme = os.environ.get("MATUGEN_SCHEME", "scheme-tonal-spot")
+    def detected_dms_targets(self) -> set[str]:
+        result = subprocess.run(
+            [str(DMS), "matugen", "check"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"DMS could not detect Matugen targets: {(result.stderr or result.stdout).strip()}")
+        start = result.stdout.find("[")
+        try:
+            targets = json.loads(result.stdout[start:])
+        except (json.JSONDecodeError, ValueError) as error:
+            raise RuntimeError("DMS returned an invalid Matugen target list") from error
+        return {
+            str(target["id"])
+            for target in targets
+            if isinstance(target, dict) and target.get("detected") is True and isinstance(target.get("id"), str)
+        }
+
+    def generate(self, palette_input: Path, mode: str) -> None:
+        if not DMS.is_file():
+            raise FileNotFoundError(f"DMS executable is missing: {DMS}")
+        if not DMS_SHELL_DIR.is_dir():
+            raise FileNotFoundError(f"DMS shell data is missing: {DMS_SHELL_DIR}")
+
+        settings = self.dms_settings()
+        scheme = os.environ.get("MATUGEN_SCHEME", str(settings.get("matugenScheme", "scheme-tonal-spot")))
+        contrast = float(settings.get("matugenContrast", 0.0))
+        icon_theme = str(settings.get("lastAppliedIconTheme", "Matugen"))
         command = [
-            str(MATUGEN),
-            "--config",
-            str(MATUGEN_CONFIG),
+            str(DMS),
+            "matugen",
+            "generate",
+            "--state-dir",
+            str(DMS_STATE_DIR),
+            "--shell-dir",
+            str(DMS_SHELL_DIR),
+            "--config-dir",
+            str(CONFIG_HOME),
+            "--kind",
+            "image",
+            "--value",
+            str(palette_input),
             "--mode",
             mode,
-            "--type",
+            "--icon-theme",
+            icon_theme,
+            "--matugen-type",
             scheme,
-            "--source-color-index",
-            "0",
-            "image",
-            str(palette_input),
+            "--contrast",
+            str(contrast),
         ]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
-        if result.returncode != 0:
+        if settings.get("syncModeWithPortal") is True:
+            command.append("--sync-mode-with-portal")
+        if settings.get("terminalsAlwaysDark") is True:
+            command.append("--terminals-always-dark")
+        environment = os.environ.copy()
+        environment["MATUGEN_WALLPAPER_ACTIVE"] = "1"
+        result = subprocess.run(command, capture_output=True, text=True, timeout=120, check=False, env=environment)
+        # DMS uses exit 2 as a successful "palette unchanged" result.
+        if result.returncode not in (0, 2):
             details = (result.stderr or result.stdout).strip()
-            raise RuntimeError(f"Matugen failed with exit {result.returncode}: {details}")
+            raise RuntimeError(f"DMS Matugen failed with exit {result.returncode}: {details}")
         if result.stderr.strip():
-            LOG.debug("Matugen: %s", result.stderr.strip())
+            LOG.debug("DMS Matugen: %s", result.stderr.strip())
 
     def validate_generated(self) -> dict[str, Any]:
         minimum_sizes = {
             "css": 80,
             "ghostty": 250,
+            "kitty": 40,
             "zed": 2_000,
             "btop": 500,
             "ohmyposh": 2_000,
             "zsh": 300,
             "fastfetch": 400,
             "zen": 1_000,
-            "vim": 4_000,
+            "nvim": 4_000,
+            "lua": 100,
+            "niri": 40,
+            "qt": 80,
+            "json": 20,
             "spicetify-ini": 500,
             "spicetify-css": 2_000,
             "palette": 100,
             "svg": 500,
         }
-        for temporary, _, kind in GENERATED_FILES:
-            if not temporary.is_file() or temporary.stat().st_size < minimum_sizes[kind]:
-                raise RuntimeError(f"Generated {kind} output is missing or too small: {temporary}")
-            text = temporary.read_text(encoding="utf-8")
+        detected_targets = self.detected_dms_targets()
+        generated_files = dict(CUSTOM_GENERATED_FILES)
+        for target in detected_targets:
+            generated_files.update(DMS_GENERATED_FILES.get(target, ()))
+
+        for path, kind in generated_files.items():
+            if not path.is_file() or path.stat().st_size < minimum_sizes[kind]:
+                raise RuntimeError(f"Generated {kind} output is missing or too small: {path}")
+            text = path.read_text(encoding="utf-8")
             if kind != "ohmyposh" and ("{{" in text or "<*" in text):
-                raise RuntimeError(f"Unresolved Matugen expression in {temporary}")
+                raise RuntimeError(f"Unresolved Matugen expression in {path}")
             if kind == "ohmyposh":
                 try:
                     prompt = json.loads(text)
                 except json.JSONDecodeError as error:
-                    raise RuntimeError(f"Generated Oh My Posh configuration is not valid JSON: {temporary}: {error}") from error
+                    raise RuntimeError(f"Generated Oh My Posh configuration is not valid JSON: {path}: {error}") from error
                 prompt_palette = prompt.get("palette")
                 if prompt.get("version") != 3 or not isinstance(prompt_palette, dict) or not prompt_palette.get("blue"):
                     raise RuntimeError("Generated Oh My Posh configuration is missing its palette")
@@ -622,16 +739,18 @@ class WallpaperPalette:
             if kind == "zsh" and "MATUGEN_ZSH_PATH" not in text:
                 raise RuntimeError("Generated Zsh palette is incomplete")
             if kind == "css" and text.count("{") != text.count("}"):
-                raise RuntimeError(f"Unbalanced CSS braces in {temporary}")
+                raise RuntimeError(f"Unbalanced CSS braces in {path}")
             if kind == "ghostty" and text.count("palette = ") != 16:
-                raise RuntimeError(f"Incomplete Ghostty palette in {temporary}")
+                raise RuntimeError(f"Incomplete Ghostty palette in {path}")
+            if kind == "kitty" and "#" not in text:
+                raise RuntimeError(f"Incomplete Kitty palette in {path}")
             if kind == "btop" and "theme[process_end]" not in text:
-                raise RuntimeError(f"Incomplete btop palette in {temporary}")
+                raise RuntimeError(f"Incomplete btop palette in {path}")
             if kind == "fastfetch":
                 try:
                     fastfetch = json.loads(text)
                 except json.JSONDecodeError as error:
-                    raise RuntimeError(f"Generated Fastfetch configuration is not valid JSON: {temporary}: {error}") from error
+                    raise RuntimeError(f"Generated Fastfetch configuration is not valid JSON: {path}: {error}") from error
                 display = fastfetch.get("display")
                 if not isinstance(display, dict) or not isinstance(display.get("color"), dict):
                     raise RuntimeError("Generated Fastfetch configuration is missing display colors")
@@ -639,8 +758,13 @@ class WallpaperPalette:
                     raise RuntimeError("Generated Fastfetch configuration is missing logo colors")
                 if not isinstance(fastfetch.get("modules"), list) or not fastfetch["modules"]:
                     raise RuntimeError("Generated Fastfetch configuration is missing its module list")
-            if kind == "vim" and 'let g:colors_name = "matugen"' not in text:
-                raise RuntimeError("Generated Vim colorscheme is incomplete")
+            if kind == "nvim" and 'let g:colors_name = "dms"' not in text:
+                raise RuntimeError("Generated DMS Neovim colorscheme is incomplete")
+            if kind == "json":
+                try:
+                    json.loads(text)
+                except json.JSONDecodeError as error:
+                    raise RuntimeError(f"Generated JSON is invalid: {path}: {error}") from error
             if kind == "spicetify-ini":
                 parser = configparser.ConfigParser(interpolation=None)
                 try:
@@ -685,39 +809,41 @@ class WallpaperPalette:
                 try:
                     root = ET.fromstring(text)
                 except ET.ParseError as error:
-                    raise RuntimeError(f"Generated folder icon is not valid XML: {temporary}: {error}") from error
+                    raise RuntimeError(f"Generated folder icon is not valid XML: {path}: {error}") from error
                 if not root.tag.endswith("svg"):
-                    raise RuntimeError(f"Generated folder icon has no SVG root: {temporary}")
+                    raise RuntimeError(f"Generated folder icon has no SVG root: {path}")
                 remaining_blues = ADWAITA_FOLDER_BLUES.intersection(HEX_COLOR.findall(text.lower()))
                 if remaining_blues:
-                    raise RuntimeError(f"Generated folder icon still contains Adwaita blue {sorted(remaining_blues)}: {temporary}")
+                    raise RuntimeError(f"Generated folder icon still contains Adwaita blue {sorted(remaining_blues)}: {path}")
 
-        zed_temporary = CONFIG_HOME / "zed" / "themes" / "matugen.json.new"
-        zed = load_json(zed_temporary)
-        names = {theme.get("name") for theme in zed.get("themes", []) if isinstance(theme, dict)}
-        if names != {"Matugen Dark", "Matugen Light"}:
-            raise RuntimeError("Generated Zed theme does not contain both expected modes")
+        if "zed" in detected_targets:
+            zed_path = CONFIG_HOME / "zed" / "themes" / "dank-zed-theme.json"
+            zed = load_json(zed_path)
+            names = {theme.get("name") for theme in zed.get("themes", []) if isinstance(theme, dict)}
+            if not {"DankShell Dark", "DankShell Light"}.issubset(names):
+                raise RuntimeError("Generated DMS Zed theme does not contain both expected modes")
 
-        zen_temporary = CONFIG_HOME / "matugen" / "runtime" / "zen" / "matugen.css.new"
-        zen_css = zen_temporary.read_text(encoding="utf-8")
-        if "{{" in zen_css or "--zen-primary-color:" not in zen_css:
-            raise RuntimeError("Generated Zen stylesheet is incomplete")
+        if "zenbrowser" in detected_targets:
+            zen_css = ZEN_RUNTIME_CSS.read_text(encoding="utf-8")
+            if "{{" in zen_css or "--zen-primary-color:" not in zen_css:
+                raise RuntimeError("Generated DMS Zen stylesheet is incomplete")
 
-        for version, path in (
-            ("3.0", CONFIG_HOME / "gtk-3.0" / "matugen.css.new"),
-            ("4.0", CONFIG_HOME / "gtk-4.0" / "matugen.css.new"),
-        ):
-            result = subprocess.run(
-                [sys.executable, "-c", GTK_CSS_VALIDATOR, version, str(path)],
-                capture_output=True,
-                text=True,
-                timeout=15,
-                check=False,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"GTK {version} rejected {path}: {result.stderr.strip()}")
+        if "gtk" in detected_targets:
+            for version, path in (
+                ("3.0", CONFIG_HOME / "gtk-3.0" / "dank-colors.css"),
+                ("4.0", CONFIG_HOME / "gtk-4.0" / "dank-colors.css"),
+            ):
+                result = subprocess.run(
+                    [sys.executable, "-c", GTK_CSS_VALIDATOR, version, str(path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f"GTK {version} rejected {path}: {result.stderr.strip()}")
 
-        palette = load_json(CACHE_HOME / "palette.json.new")
+        palette = load_json(CACHE_HOME / "palette.json")
         required = {
             "source",
             "primary",
@@ -737,11 +863,6 @@ class WallpaperPalette:
         if any(not isinstance(palette[key], str) or HEX_COLOR.fullmatch(palette[key]) is None for key in required):
             raise RuntimeError("Generated palette state contains an invalid color")
         return palette
-
-    def commit_generated(self) -> None:
-        for temporary, final, _ in GENERATED_FILES:
-            os.replace(temporary, final)
-            final.chmod(0o600)
 
     def apply_gnome_colors(self, palette: dict[str, Any]) -> str:
         accent = nearest_gnome_accent(str(palette["source"]))
@@ -899,6 +1020,21 @@ class WallpaperPalette:
         self.install_steam_css()
         self.refresh_spicetify_theme()
 
+    def postprocess(self) -> dict[str, Any]:
+        """Validate DMS outputs and synchronize apps that need extra setup."""
+        self.prepare_directories()
+        with LOCK_FILE.open("a+", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            palette = self.validate_generated()
+            cleanup_legacy_theme_outputs()
+            accent = self.apply_gnome_colors(palette)
+            apply_helium_theme(palette)
+            apply_zen_theme()
+            if self.reload_apps:
+                self.reload_everything()
+            LOG.info("Post-processed DMS source %s with GNOME accent %s", palette["source"], accent)
+            return palette
+
     def apply(self, *, force: bool = False, override: Path | None = None) -> bool:
         self.prepare_directories()
         with LOCK_FILE.open("a+", encoding="utf-8") as lock:
@@ -917,7 +1053,7 @@ class WallpaperPalette:
             LOG.info("Generating %s palette from %s", mode, source)
             self.generate(palette_input, mode)
             palette = self.validate_generated()
-            self.commit_generated()
+            cleanup_legacy_theme_outputs()
             accent = self.apply_gnome_colors(palette)
             apply_helium_theme(palette)
             apply_zen_theme()
@@ -1002,6 +1138,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", nargs="?", type=Path, help="optional image or video to use for a one-shot palette")
     parser.add_argument("--watch", action="store_true", help="watch GNOME settings and keep the palette synchronized")
+    parser.add_argument(
+        "--postprocess-only",
+        action="store_true",
+        help="validate an existing DMS generation and synchronize apps that need extra setup",
+    )
     parser.add_argument("--no-reload", action="store_true", help="generate files without asking running apps to reload")
     parser.add_argument("--status", action="store_true", help="print the last successful wallpaper palette state")
     parser.add_argument(
@@ -1031,6 +1172,16 @@ def main() -> int:
             apply_helium_theme(load_json(palette_path))
         except (OSError, ValueError, json.JSONDecodeError) as error:
             LOG.error("Could not synchronize Helium's native theme: %s", error)
+            return 1
+        return 0
+    if args.postprocess_only:
+        if args.image is not None or args.watch:
+            print("--postprocess-only cannot be combined with an image or --watch.", file=sys.stderr)
+            return 2
+        try:
+            WallpaperPalette(reload_apps=not args.no_reload).postprocess()
+        except Exception:
+            LOG.exception("DMS palette post-processing failed")
             return 1
         return 0
     if args.watch and args.image is not None:
