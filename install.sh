@@ -11,7 +11,6 @@ packages=(
   matugen
   terminal
   zed
-  vscodium
   hardware
   zsh-bootstrap
 )

@@ -50,7 +50,6 @@ palettes.
 | `matugen` | DMS-compatible Matugen templates, post-processing helpers, and XDG discovery links for generated extras/icons/Helium |
 | `terminal` | Fish, Zsh, Ghostty, Kitty, btop, and Neovim configuration wired to DMS theme filenames |
 | `zed` | Zed settings, keymap, and tasks wired to DMS's generated DankShell theme |
-| `vscodium` | VSCodium settings selecting DMS's bundled dynamic DankShell theme extension |
 | `hardware` | OpenRGB profiles and Qt preference files |
 
 `~/.zshenv` comes from `zsh-bootstrap`. After stowing, `install.sh` also
@@ -69,7 +68,9 @@ GTK `dank-colors.css`, Ghostty `dankcolors`, Kitty `dank-theme.conf` and
 the VSCodium extension themes, the Discord client themes, and Niri's
 `dms/colors.kdl`. The same DMS generator runs from either desktop, so
 applications do not need session-specific theme paths. `install.sh` installs
-DMS's bundled VSCodium VSIX and selects `Dynamic Base16 DankShell`.
+DMS's bundled VSCodium VSIX and selects the matching DankShell mode.
+VSCodium's `settings.json` stays machine-local because DMS updates its selected
+Dark/Light variant whenever the system color mode changes.
 
 The Matugen user templates run as part of that same generation and add the
 targets DMS does not ship: btop, Fastfetch, prompts, Spicetify, Steam, Helium,
