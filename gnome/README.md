@@ -1,59 +1,75 @@
-# GNOME settings
+# GNOME portable state
 
-Portable GNOME Shell 50 settings for reproducing this desktop on another
-machine. This is a sanitized `dconf` snapshot, not the binary
-`~/.config/dconf/user` database.
+The files under `gnome/dconf/` are sanitized text exports for GNOME Shell 50,
+not the binary `~/.config/dconf/user` database. Restore is additive: `dconf
+load` updates keys present in the snapshot and leaves unrelated keys on the
+target machine intact. It is therefore a portable baseline, not a destructive
+factory reset.
 
-## What is included
+## Included
 
-- appearance: dark mode, accent, fonts, icon theme, user theme
-- input: US + Arabic layouts, mouse, touchpad, numlock
-- window manager: 4 fixed workspaces, Super+1..4, Super+q, tiling
-- Nautilus, Papers, power, night light, privacy, break reminders
-- app folders, favorite apps, Dash to Dock, Blur my Shell
-- GTK file chooser defaults, Blanket, AdwSteamGtk, Mission Center
+- portable appearance settings, fonts, input sources, keyboard shortcuts, and
+  workspace/window rules;
+- Nautilus, Papers, power, privacy, break reminders, and file chooser defaults;
+- curated favorites and extension settings for the enabled extension set;
+- a committed wallpaper at
+  `~/.local/share/backgrounds/dotfiles-wallpaper.jpg`, followed by DMS/Matugen
+  palette generation.
 
-## What is excluded
+The desired enabled extensions are listed in `extensions.txt` and installed by
+the official/AUR package manifests. The restore helper refuses an absent
+extension instead of downloading an unpinned bundle. GameMode and unrelated
+installed extensions are not part of the baseline.
 
-Wallpaper file URIs, window sizes, file-chooser last paths, command
-history, NetworkManager EAP entries, remote-desktop certificate paths,
-night-light GPS coordinates, monitor serials, software timestamps, and
-Hanabi live-wallpaper paths. Those are machine-local or credential-adjacent.
+## Excluded or overridden for safety
 
-The current wallpaper is applied by the `matugen` package, not by this
-dump.
+- wallpaper source URIs from the machine, monitor serials, window sizes, and
+  file chooser/history paths;
+- the GNOME accent and legacy GTK theme override, which DMS/Matugen manages
+  after restore; the portable dark/light preference and generated icon/Shell
+  theme remain reproducible;
+- app folders and stale game/media/chat application lists;
+- disabled-extension inventory, removed-extension settings, unavailable search
+  providers, hardware sensor IDs, and applicationless monitor commands;
+- world-clock coordinates and system location state;
+- NetworkManager EAP and remote-desktop certificate paths;
+- passwordless file sharing and disabled screen locking.
 
-## Reproduce on a new machine
+Apply explicitly enables locking, sets a five-minute idle timeout with immediate
+lock after blanking, requires a file-sharing password, and points GNOME at the
+committed wallpaper.
 
-1. Install GNOME, GNU Stow, `dconf`, JetBrains Mono, and
-   JetBrainsMono Nerd Font.
-2. Install the **enabled** extensions listed in `extensions.txt`.
-3. From the repo root:
+## Restore
 
-   ```sh
-   ./install.sh
-   ```
+The normal profile apply invokes the handler automatically. To restore only
+GNOME state:
 
-   That stows the packages, loads these dconf files, and generates a
-   Matugen palette from the current wallpaper. To load settings only:
+```sh
+./state/gnome/apply
+```
 
-   ```sh
-   ./scripts/load-gnome
-   ```
+This loads non-empty dconf fragments, installs/enables the desired extensions,
+sets the safe overrides and wallpaper, and generates the palette. Log out of
+GNOME and back in after extension changes.
 
-4. Log out and back in so GNOME Shell reloads extensions and keybindings.
-5. If install could not see a wallpaper, generate the theme afterwards:
+## Capture safely
 
-   ```sh
-   matugen-wallpaper /path/to/wallpaper.jpg
-   ```
+First inspect without writing:
 
-## Refresh the export
+```sh
+./scripts/export-gnome --check
+```
 
-On the source machine, after changing GNOME settings:
+Then capture only when the proposed drift is intentional:
 
 ```sh
 ./scripts/export-gnome
+git diff -- gnome/
 ```
 
-Review the diff, then commit. Do not check in `~/.config/dconf/user`.
+When `gnome-extensions` cannot contact a running Shell, the exporter falls back
+to the dconf-backed `gsettings` value. If neither source is trustworthy, it
+aborts before touching the tracked snapshot. It never silently converts an
+extension failure into an empty enabled list. All candidate files are staged
+and flushed before any tracked snapshot file is replaced, and keys are emitted
+in canonical order so capture/apply/capture is stable.

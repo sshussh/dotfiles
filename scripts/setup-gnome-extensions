@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
-"""Install missing enabled GNOME extensions and turn them on.
+"""Enable the package-managed GNOME extensions in the portable manifest.
 
-Prefers copies already on disk (system or user). Remaining UUIDs are
-downloaded from extensions.gnome.org for the running Shell version.
+Missing extensions are an error. The workstation profile owns their package
+sources, so this helper never falls back to an unpinned network download.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-import re
 import subprocess
 import sys
-import tempfile
-import urllib.error
-import urllib.parse
-import urllib.request
-
-
-EGO = "https://extensions.gnome.org"
-UA = "Mozilla/5.0 (compatible; sshussh-dotfiles-install)"
 
 
 def repo_root() -> Path:
@@ -44,68 +34,6 @@ def installed(uuid: str) -> bool:
     return user.is_dir() or system.is_dir()
 
 
-def shell_major() -> str | None:
-    try:
-        out = subprocess.run(
-            ["gnome-shell", "--version"],
-            check=False,
-            capture_output=True,
-            text=True,
-        ).stdout
-    except FileNotFoundError:
-        return None
-    match = re.search(r"(\d+)", out)
-    return match.group(1) if match else None
-
-
-def fetch_json(url: str) -> dict:
-    request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def download(url: str, dest: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=60) as response, dest.open("wb") as handle:
-        handle.write(response.read())
-
-
-def install_from_ego(uuid: str, version: str) -> bool:
-    info_url = (
-        f"{EGO}/extension-info/?uuid={urllib.parse.quote(uuid)}"
-        f"&shell_version={urllib.parse.quote(version)}"
-    )
-    try:
-        info = fetch_json(info_url)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as error:
-        print(f"  skip  {uuid}: could not query extensions.gnome.org ({error})", file=sys.stderr)
-        return False
-    relative = info.get("download_url")
-    if not relative:
-        print(f"  skip  {uuid}: no download for GNOME {version}", file=sys.stderr)
-        return False
-    zip_url = relative if str(relative).startswith("http") else f"{EGO}{relative}"
-    with tempfile.TemporaryDirectory(prefix="gnome-ext-") as tmp:
-        bundle = Path(tmp) / f"{uuid}.shell-extension.zip"
-        try:
-            download(zip_url, bundle)
-        except (urllib.error.URLError, TimeoutError, OSError) as error:
-            print(f"  skip  {uuid}: download failed ({error})", file=sys.stderr)
-            return False
-        result = subprocess.run(
-            ["gnome-extensions", "install", "--force", str(bundle)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout).strip() or f"exit {result.returncode}"
-        print(f"  skip  {uuid}: gnome-extensions install failed ({details})", file=sys.stderr)
-        return False
-    print(f"  installed {uuid}")
-    return True
-
-
 def enable(uuid: str) -> None:
     result = subprocess.run(
         ["gnome-extensions", "enable", uuid],
@@ -125,33 +53,26 @@ def main() -> int:
 
     if which("gnome-extensions") is None:
         print("setup-gnome-extensions: gnome-extensions is not installed", file=sys.stderr)
-        return 0
+        return 1
 
     manifest = repo_root() / "gnome" / "extensions.txt"
     if not manifest.is_file():
         print("setup-gnome-extensions: no gnome/extensions.txt", file=sys.stderr)
-        return 0
+        return 1
 
-    version = shell_major()
     rows = enabled_uuids(manifest)
-    print("Installing and enabling GNOME extensions...")
+    print("Checking and enabling package-managed GNOME extensions...")
     missing = [(uuid, name) for uuid, name in rows if not installed(uuid)]
-    if missing and version is None:
-        print("  gnome-shell is not available; cannot download extensions", file=sys.stderr)
     for uuid, name in missing:
-        if version is None:
-            print(f"  MISS  {name} ({uuid})")
-            continue
-        print(f"  fetch {name} ({uuid})")
-        install_from_ego(uuid, version)
+        print(f"  MISS  {name} ({uuid}) — install the profile package", file=sys.stderr)
 
     for uuid, name in rows:
         if installed(uuid):
             enable(uuid)
         else:
-            print(f"  MISS  {name} ({uuid}) — install it, then log out")
+            print(f"  MISS  {name} ({uuid}) — install it, then log out", file=sys.stderr)
     print("Log out of GNOME so newly enabled extensions load.")
-    return 0
+    return 1 if missing else 0
 
 
 if __name__ == "__main__":

@@ -7,10 +7,13 @@ Re-run this on the source machine whenever desktop settings change.
 
 from __future__ import annotations
 
+import argparse
+import ast
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -30,12 +33,10 @@ INCLUDE_PREFIXES = {
     "org.gnome.ini": (
         "calculator",
         "desktop/a11y",
-        "desktop/app-folders",
         "desktop/background",
         "desktop/break-reminders",
         "desktop/calendar",
         "desktop/datetime",
-        "desktop/file-sharing",
         "desktop/input-sources",
         "desktop/interface",
         "desktop/peripherals",
@@ -56,29 +57,25 @@ INCLUDE_PREFIXES = {
         "settings-daemon/plugins/media-keys",
         "settings-daemon/plugins/power",
         "shell",
-        "system/location",
         "tweaks",
     ),
     "org.gtk.ini": (
         "gtk4/settings/file-chooser",
         "settings/file-chooser",
     ),
-    "com.ini": (
-        "rafaelmardojai/Blanket",
-        "usebottles/bottles",
-    ),
-    "io.ini": (
-        "github/Foldex/AdwSteamGtk",
-        "missioncenter/MissionCenter",
-    ),
+    "com.ini": (),
+    "io.ini": (),
 }
 
 # Drop whole sections even if a parent prefix matches.
 EXCLUDE_EXACT = {
+    "desktop/file-sharing",
     "desktop/notifications",
     "desktop/remote-desktop/rdp",
     "nautilus/window-state",
     "papers/default",  # includes window/zoom state; keep [papers] only
+    "shell/world-clocks",
+    "system/location",
 }
 
 EXCLUDE_PREFIXES = (
@@ -91,6 +88,7 @@ EXCLUDE_PREFIXES = (
     "software",
     "epiphany",
     "github/jeffshee/hanabi-extension",
+    "shell/extensions/gamemodeshellextension",
 )
 
 # Keys that are machine-local, secret-adjacent, or session state.
@@ -126,7 +124,41 @@ DROP_KEYS = {
     "startup-view",
     "update-date",
     "show-funding",
+    "app-picker-layout",
+    "disabled-extensions",
+    "last-selected-power-profile",
+    "hot-sensors",
+    "monitor-cmd",
 }
+
+BLOCKED_EXTENSION_UUIDS = {"gamemodeshellextension@trsnaqe.com"}
+PORTABLE_FAVORITES = [
+    "com.mitchellh.ghostty.desktop",
+    "org.gnome.Nautilus.desktop",
+    "org.gnome.TextEditor.desktop",
+    "org.gnome.Calculator.desktop",
+    "org.gnome.Settings.desktop",
+    "dev.zed.Zed.desktop",
+    "codium.desktop",
+    "zen.desktop",
+]
+
+PORTABLE_SEARCH_PROVIDERS = [
+    "org.gnome.Settings.desktop",
+    "org.gnome.Nautilus.desktop",
+]
+
+# Only preserve settings belonging to extensions in extensions.txt. Component
+# subtrees below an allowed prefix (for example Blur My Shell integrations) are
+# retained, while settings from removed extensions are not carried forward.
+PORTABLE_EXTENSION_PREFIXES = (
+    "shell/extensions/appindicator",
+    "shell/extensions/blur-my-shell",
+    "shell/extensions/clipboard-indicator",
+    "shell/extensions/dash-to-dock",
+    "shell/extensions/user-theme",
+    "shell/extensions/vitals",
+)
 
 GTK_KEEP_KEYS = {
     "show-hidden",
@@ -139,6 +171,13 @@ GTK_KEEP_KEYS = {
     "sort-column",
     "sort-order",
     "type-format",
+}
+
+# DMS/Matugen owns these desktop-interface values after the snapshot is loaded.
+# Capturing them would make a freshly restored system immediately report drift.
+DYNAMIC_INTERFACE_KEYS = {
+    "accent-color",
+    "gtk-theme",
 }
 
 
@@ -200,6 +239,11 @@ def included(filename: str, section: str) -> bool:
     for prefix in EXCLUDE_PREFIXES:
         if section == prefix.rstrip("/") or section.startswith(prefix):
             return False
+    if filename == "org.gnome.ini" and section.startswith("shell/extensions/"):
+        return any(
+            section == prefix or section.startswith(prefix + "/")
+            for prefix in PORTABLE_EXTENSION_PREFIXES
+        )
     prefixes = INCLUDE_PREFIXES[filename]
     if section == "":
         return "/" in prefixes
@@ -211,6 +255,12 @@ def included(filename: str, section: str) -> bool:
 
 def keep_key(filename: str, section: str, key: str) -> bool:
     if key in DROP_KEYS:
+        return False
+    if (
+        filename == "org.gnome.ini"
+        and section == "desktop/interface"
+        and key in DYNAMIC_INTERFACE_KEYS
+    ):
         return False
     if filename == "org.gtk.ini" and key not in GTK_KEEP_KEYS:
         return False
@@ -258,12 +308,31 @@ def read_enabled() -> list[str]:
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        return []
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode == 0:
+        return [
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip() and line.strip() not in BLOCKED_EXTENSION_UUIDS
+        ]
+
+    fallback = subprocess.run(
+        ["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if fallback.returncode == 0:
+        try:
+            values = ast.literal_eval(fallback.stdout.strip())
+        except (SyntaxError, ValueError):
+            values = None
+        if isinstance(values, list) and all(isinstance(value, str) for value in values):
+            print("export-gnome: GNOME Shell unavailable; used gsettings fallback", file=sys.stderr)
+            return [value for value in values if value not in BLOCKED_EXTENSION_UUIDS]
+    die("cannot determine enabled extensions; refusing to overwrite the snapshot")
 
 
-def write_extensions_manifest(enabled: list[str]) -> None:
+def format_extensions_manifest(enabled: list[str]) -> str:
     lines = [
         "# GNOME Shell extensions on the source machine.",
         "# Install the enabled ones before loading dconf, then log out and back in.",
@@ -276,6 +345,8 @@ def write_extensions_manifest(enabled: list[str]) -> None:
     enabled_set = set(enabled)
     for path in extension_dirs():
         name = path.name
+        if name in BLOCKED_EXTENSION_UUIDS:
+            continue
         try:
             import json
 
@@ -292,7 +363,7 @@ def write_extensions_manifest(enabled: list[str]) -> None:
         lines.append("# Listed as enabled in dconf but not installed here:")
         for uuid in leftovers:
             lines.append(f"# {uuid}")
-    (OUT / "extensions.txt").write_text("\n".join(lines) + "\n")
+    return "\n".join(lines) + "\n"
 
 
 def shell_version() -> str:
@@ -319,11 +390,22 @@ def rewrite_enabled(sections: list[tuple[str, list[tuple[str, str]]]], enabled: 
             if key == "enabled-extensions":
                 new_entries.append((key, rendered))
                 replaced = True
+            elif key == "favorite-apps":
+                favorites = "[" + ", ".join(repr(value) for value in PORTABLE_FAVORITES) + "]"
+                new_entries.append((key, favorites))
             else:
                 new_entries.append((key, value))
         if not replaced:
             new_entries.append(("enabled-extensions", rendered))
         sections[i] = (name, new_entries)
+
+
+def upsert(entries: list[tuple[str, str]], key: str, value: str) -> None:
+    for index, (existing, _) in enumerate(entries):
+        if existing == key:
+            entries[index] = (key, value)
+            return
+    entries.append((key, value))
 
 
 def sanitize(filename: str, raw: str, enabled: list[str]) -> str:
@@ -332,6 +414,15 @@ def sanitize(filename: str, raw: str, enabled: list[str]) -> str:
         if not included(filename, section):
             continue
         filtered = [(k, v) for k, v in entries if keep_key(filename, section, k)]
+        if filename == "org.gnome.ini" and section == "desktop/screensaver":
+            upsert(filtered, "lock-enabled", "true")
+            upsert(filtered, "lock-delay", "uint32 0")
+        if filename == "org.gnome.ini" and section == "desktop/session":
+            upsert(filtered, "idle-delay", "uint32 300")
+        if filename == "org.gnome.ini" and section == "desktop/search-providers":
+            rendered = "[" + ", ".join(repr(value) for value in PORTABLE_SEARCH_PROVIDERS) + "]"
+            upsert(filtered, "sort-order", rendered)
+        filtered.sort(key=lambda item: item[0])
         kept.append((section, filtered))
     if filename == "org.gnome.ini":
         rewrite_enabled(kept, enabled)
@@ -339,16 +430,48 @@ def sanitize(filename: str, raw: str, enabled: list[str]) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report whether a fresh sanitized capture differs without writing files",
+    )
+    args = parser.parse_args()
     require("dconf")
-    DCONF_OUT.mkdir(parents=True, exist_ok=True)
     enabled = read_enabled()
+    pending: dict[Path, str] = {}
     for filename, path in SOURCES.items():
         raw = dump_dconf(path)
         cleaned = sanitize(filename, raw, enabled)
-        (DCONF_OUT / filename).write_text(cleaned)
-        print(f"wrote {DCONF_OUT.relative_to(REPO)}/{filename}")
-    write_extensions_manifest(enabled)
-    print(f"wrote { (OUT / 'extensions.txt').relative_to(REPO) }")
+        pending[DCONF_OUT / filename] = cleaned
+    pending[OUT / "extensions.txt"] = format_extensions_manifest(enabled)
+    if args.check:
+        changed = [path for path, text in pending.items() if not path.is_file() or path.read_text() != text]
+        for path in changed:
+            print(f"would update {path.relative_to(REPO)}")
+        raise SystemExit(1 if changed else 0)
+    DCONF_OUT.mkdir(parents=True, exist_ok=True)
+    staged: list[tuple[Path, Path]] = []
+    try:
+        for path, text in pending.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                delete=False,
+            ) as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+                staged.append((path, Path(handle.name)))
+        for path, temporary in staged:
+            os.replace(temporary, path)
+            print(f"wrote {path.relative_to(REPO)}")
+    finally:
+        for _, temporary in staged:
+            temporary.unlink(missing_ok=True)
     print("sanitized GNOME settings export is ready")
 
 
