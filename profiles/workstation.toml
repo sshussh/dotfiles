@@ -1,0 +1,2 @@
+schema_version = 1
+includes = ["common", "host-intel-nvidia"]

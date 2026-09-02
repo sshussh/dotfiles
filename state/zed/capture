@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source_dir="$HOME/.local/share/zed/extensions/installed"
+[[ -d "$source_dir" ]] || { echo "Zed extensions directory is absent" >&2; exit 1; }
+destination="$(dirname "$0")/extensions.txt"
+temporary=$(mktemp "${destination}.tmp.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+find "$source_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort >"$temporary"
+[[ -s "$temporary" ]] || { echo "refusing to replace the manifest with an empty capture" >&2; exit 1; }
+mv -- "$temporary" "$destination"
+trap - EXIT

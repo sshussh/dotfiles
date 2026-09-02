@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
+command -v pre-commit >/dev/null 2>&1 || {
+  echo "pre-commit: install the selected pre-commit package first" >&2
+  exit 1
+}
+cd "$repo"
+pre-commit install --install-hooks

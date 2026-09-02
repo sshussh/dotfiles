@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "OpenRGB capture is manual; tracked detector/profile data may expose hardware identifiers"

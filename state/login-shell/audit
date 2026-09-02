@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+desired="$(readlink -f /usr/bin/zsh 2>/dev/null || true)"
+[[ -x "$desired" ]] || { echo "zsh is not installed" >&2; exit 1; }
+current="$(getent passwd "$(id -un)" | cut -d: -f7)"
+current_resolved="$(readlink -f "$current" 2>/dev/null || printf '%s' "$current")"
+[[ "$current_resolved" == "$desired" ]] || {
+  echo "login shell drift: ${current:-unknown} -> $desired" >&2
+  exit 1
+}
+echo "login shell matches $desired"

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+command -v codium >/dev/null 2>&1 || { echo "WARN: VSCodium not installed"; exit 0; }
+manifest="$(dirname "$0")/extensions.txt"
+[[ -s "$manifest" ]] || { echo "VSCodium extension manifest is missing" >&2; exit 1; }
+while IFS= read -r extension; do
+  [[ -n "$extension" && "$extension" != \#* ]] || continue
+  codium --install-extension "$extension"
+done <"$manifest"

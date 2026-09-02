@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "login-shell capture is unnecessary; the desired shell is /usr/bin/zsh"

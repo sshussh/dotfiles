@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Zed extensions are installed through Zed's extension manager"

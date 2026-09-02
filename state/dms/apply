@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "DMS state is session-owned; sign in/start DMS manually, then run matugen-wallpaper"

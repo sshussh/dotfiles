@@ -1,0 +1,1038 @@
+#!/usr/bin/env python3
+"""Reproduce and audit this Arch workstation with GNU Stow.
+
+Python 3.11+ and GNU Stow are the only controller dependencies. Package and
+system changes remain interactive; dry runs execute Stow's real simulator.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    print("dotfiles: Python 3.11 or newer is required", file=sys.stderr)
+    raise SystemExit(2)
+
+
+ROOT = Path(__file__).resolve().parent
+PROFILE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+PACKAGE_NAME = re.compile(r"^[A-Za-z0-9@._+:-]+$")
+PLACEHOLDER = re.compile(r"{{([A-Z][A-Z0-9_]*)}}")
+IGNORED_STOW_PARTS = {".git", "__pycache__", "backups"}
+
+
+class ConfigError(RuntimeError):
+    pass
+
+
+def unique(values: list[Any]) -> list[Any]:
+    return list(dict.fromkeys(values))
+
+
+def empty_profile() -> dict[str, Any]:
+    return {
+        "variables": {},
+        "stow_packages": [],
+        "manifests": {},
+        "services": {},
+        "state_handlers": [],
+        "system_templates": [],
+        "cargo_sources": [],
+        "aur_sources": [],
+        "git_sources": [],
+        "bootstrap": {},
+    }
+
+
+def load_toml(path: Path) -> dict[str, Any]:
+    try:
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ConfigError(f"cannot read {path}: {error}") from error
+
+
+def merge_list_map(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    result = {key: list(value) for key, value in base.items()}
+    for key, value in overlay.items():
+        if not isinstance(value, list):
+            raise ConfigError(f"{key} must be an array")
+        result[key] = unique(result.get(key, []) + value)
+    return result
+
+
+def merge_profiles(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    result = empty_profile()
+    result["variables"] = {**base.get("variables", {}), **overlay.get("variables", {})}
+    result["stow_packages"] = unique(base.get("stow_packages", []) + overlay.get("stow_packages", []))
+    result["state_handlers"] = unique(base.get("state_handlers", []) + overlay.get("state_handlers", []))
+    result["manifests"] = merge_list_map(base.get("manifests", {}), overlay.get("manifests", {}))
+    result["services"] = merge_list_map(base.get("services", {}), overlay.get("services", {}))
+    result["system_templates"] = base.get("system_templates", []) + overlay.get("system_templates", [])
+    result["cargo_sources"] = base.get("cargo_sources", []) + overlay.get("cargo_sources", [])
+    result["aur_sources"] = base.get("aur_sources", []) + overlay.get("aur_sources", [])
+    result["git_sources"] = base.get("git_sources", []) + overlay.get("git_sources", [])
+    result["bootstrap"] = {**base.get("bootstrap", {}), **overlay.get("bootstrap", {})}
+    return result
+
+
+def load_profile(name: str, stack: tuple[str, ...] = ()) -> dict[str, Any]:
+    if not PROFILE_NAME.fullmatch(name):
+        raise ConfigError(f"invalid profile name: {name!r}")
+    if name in stack:
+        raise ConfigError(f"profile include cycle: {' -> '.join((*stack, name))}")
+    path = ROOT / "profiles" / f"{name}.toml"
+    if not path.is_file():
+        raise ConfigError(f"unknown profile: {name}")
+    data = load_toml(path)
+    if data.get("schema_version") != 1:
+        raise ConfigError(f"{path}: schema_version must be 1")
+    result = empty_profile()
+    for included in data.get("includes", []):
+        result = merge_profiles(result, load_profile(included, (*stack, name)))
+    return merge_profiles(result, data)
+
+
+def resolved_variables(config: dict[str, Any]) -> dict[str, str]:
+    values = {key: str(value) for key, value in config.get("variables", {}).items()}
+    for key in list(values):
+        values[key] = os.environ.get(f"DOTFILES_VAR_{key}", values[key])
+    return values
+
+
+def render(text: str, variables: dict[str, str]) -> str:
+    missing = sorted(set(PLACEHOLDER.findall(text)) - variables.keys())
+    if missing:
+        raise ConfigError(f"unresolved template variables: {', '.join(missing)}")
+    return PLACEHOLDER.sub(lambda match: variables[match.group(1)], text)
+
+
+def inside(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def validate_config(config: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    pacman = config.get("manifests", {}).get("pacman", [])
+    aur = config.get("manifests", {}).get("aur", [])
+    overlap = sorted(set(pacman) & set(aur))
+    if overlap:
+        errors.append(f"packages listed as both pacman and AUR: {', '.join(overlap)}")
+    for package in [*pacman, *aur]:
+        if not isinstance(package, str) or not PACKAGE_NAME.fullmatch(package):
+            errors.append(f"invalid package name: {package!r}")
+
+    targets: dict[str, str] = {}
+    for item in config.get("system_templates", []):
+        source_name = item.get("source", "")
+        target_name = item.get("target", "")
+        source = ROOT / source_name
+        target = Path(target_name)
+        if not source.is_file() or not inside(source, ROOT / "system"):
+            errors.append(f"invalid system template source: {source_name}")
+        if not target.is_absolute() or not inside(target, Path("/etc")):
+            errors.append(f"system target must be below /etc: {target_name}")
+        previous = targets.get(target_name)
+        if previous and previous != source_name:
+            errors.append(f"multiple templates target {target_name}: {previous}, {source_name}")
+        targets[target_name] = source_name
+        if not re.fullmatch(r"0?[0-7]{3,4}", str(item.get("mode", "0644"))):
+            errors.append(f"invalid mode for {source_name}: {item.get('mode')}")
+
+    for package in config.get("stow_packages", []):
+        source = ROOT / package
+        if not source.is_dir() or not inside(source, ROOT):
+            errors.append(f"missing or invalid Stow package: {package}")
+
+    git_targets: set[str] = set()
+    for kind in ("cargo_sources", "aur_sources", "git_sources"):
+        seen: set[str] = set()
+        for source in config.get(kind, []):
+            name = source.get("name", "")
+            if name in seen:
+                errors.append(f"duplicate {kind} entry: {name}")
+            seen.add(name)
+            if not PACKAGE_NAME.fullmatch(name):
+                errors.append(f"invalid {kind} name: {name!r}")
+            if not re.fullmatch(r"[0-9a-f]{40}", source.get("rev", "")):
+                errors.append(f"{kind} entry {name} needs a full 40-character Git revision")
+            if not str(source.get("repo", "")).startswith("https://"):
+                errors.append(f"{kind} entry {name} needs an HTTPS repository")
+            if kind == "cargo_sources" and not re.fullmatch(
+                r"[0-9]+\.[0-9]+\.[0-9]+", str(source.get("toolchain", ""))
+            ):
+                errors.append(f"{kind} entry {name} needs an exact Rust toolchain version")
+            if kind == "git_sources":
+                target = Path(str(source.get("target", "")))
+                if str(target) in {"", "."} or target.is_absolute() or ".." in target.parts:
+                    errors.append(f"{kind} entry {name} needs a safe home-relative target")
+                elif str(target) in git_targets:
+                    errors.append(f"duplicate {kind} target: {target}")
+                git_targets.add(str(target))
+    aur_names = set(config.get("manifests", {}).get("aur", []))
+    source_names = {entry.get("name") for entry in config.get("aur_sources", [])}
+    if aur_names != source_names:
+        missing = sorted(aur_names - source_names)
+        extra = sorted(source_names - aur_names)
+        if missing:
+            errors.append(f"AUR packages without source locks: {', '.join(missing)}")
+        if extra:
+            errors.append(f"AUR source locks without packages: {', '.join(extra)}")
+    bootstrap = config.get("bootstrap", {}).get("paru", {})
+    if bootstrap:
+        if not str(bootstrap.get("repo", "")).startswith("https://"):
+            errors.append("bootstrap.paru needs an HTTPS repository")
+        if not re.fullmatch(r"[0-9a-f]{40}", bootstrap.get("rev", "")):
+            errors.append("bootstrap.paru needs a full 40-character Git revision")
+    return errors
+
+
+def command_text(command: list[str]) -> str:
+    import shlex
+
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def run(
+    command: list[str],
+    *,
+    dry_run: bool = False,
+    check: bool = True,
+    cwd: Path | str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    print(f"$ {command_text(command)}", flush=True)
+    if dry_run:
+        return subprocess.CompletedProcess(command, 0, "", "")
+    return subprocess.run(command, check=check, text=True, cwd=cwd)
+
+
+def package_files(config: dict[str, Any]) -> tuple[dict[Path, Path], list[str]]:
+    expected: dict[Path, Path] = {}
+    errors: list[str] = []
+    for package in config.get("stow_packages", []):
+        root = ROOT / package
+        for source in sorted(root.rglob("*")):
+            relative = source.relative_to(root)
+            if source.is_dir() or source.name in {".stow-local-ignore", ".gitignore", ".gitattributes"}:
+                continue
+            if any(part in IGNORED_STOW_PARTS for part in relative.parts) or source.suffix == ".pyc":
+                continue
+            previous = expected.get(relative)
+            if previous is not None and previous.resolve() != source.resolve():
+                errors.append(f"duplicate Stow target {relative}: {previous} and {source}")
+            expected[relative] = source
+    return expected, errors
+
+
+def stow_status(config: dict[str, Any], target: Path) -> tuple[list[str], list[str]]:
+    expected, errors = package_files(config)
+    warnings: list[str] = []
+    for relative, source in expected.items():
+        destination = target / relative
+        if destination.is_symlink():
+            if destination.resolve(strict=False) != source.resolve(strict=False):
+                errors.append(f"Stow conflict: {destination} -> {os.readlink(destination)}")
+        elif destination.exists():
+            errors.append(f"Stow conflict: {destination} is not a managed symlink")
+        else:
+            warnings.append(f"not linked: {destination}")
+    return warnings, errors
+
+
+def installed_packages() -> dict[str, str]:
+    if not shutil.which("pacman"):
+        return {}
+    result = subprocess.run(["pacman", "-Q"], check=False, capture_output=True, text=True)
+    return {
+        line.split(" ", 1)[0]: line.split(" ", 1)[1]
+        for line in result.stdout.splitlines()
+        if " " in line
+    }
+
+
+def cargo_install_keys() -> list[str]:
+    path = Path.home() / ".cargo" / ".crates2.json"
+    try:
+        data = json.loads(path.read_text())
+        return list(data.get("installs", {}))
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return []
+
+
+def template_content(item: dict[str, Any], variables: dict[str, str]) -> str:
+    return render((ROOT / item["source"]).read_text(), variables)
+
+
+def audit_mounts(warnings: list[str]) -> None:
+    spec_path = ROOT / "system" / "mounts.toml"
+    if not spec_path.is_file() or not shutil.which("findmnt"):
+        return
+    result = subprocess.run(
+        ["findmnt", "--json", "--output", "TARGET,FSTYPE,OPTIONS"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        filesystems = json.loads(result.stdout).get("filesystems", [])
+    except json.JSONDecodeError:
+        warnings.append("could not parse findmnt output")
+        return
+    def flatten(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        result_entries: list[dict[str, Any]] = []
+        for entry in entries:
+            result_entries.append(entry)
+            result_entries.extend(flatten(entry.get("children", [])))
+        return result_entries
+
+    current = {entry.get("target"): entry for entry in flatten(filesystems)}
+    for expected in load_toml(spec_path).get("mount", []):
+        target = expected["target"]
+        entry = current.get(target)
+        if not entry:
+            warnings.append(f"mount missing: {target}")
+            continue
+        if entry.get("fstype") != expected["fstype"]:
+            warnings.append(f"mount {target}: expected {expected['fstype']}, got {entry.get('fstype')}")
+        options = set(str(entry.get("options", "")).split(","))
+        for option in expected.get("required_options", []):
+            if option not in options:
+                warnings.append(f"mount {target}: missing option {option}")
+
+
+def audit_lock(
+    profile_name: str,
+    config: dict[str, Any],
+    installed: dict[str, str],
+    warnings: list[str],
+) -> None:
+    path = ROOT / "locks" / f"{profile_name}.json"
+    if not path.is_file():
+        warnings.append(f"lock missing: {path.relative_to(ROOT)}")
+        return
+    try:
+        locked = json.loads(path.read_text())
+        if not isinstance(locked, dict):
+            raise ValueError("lock root is not an object")
+    except (OSError, json.JSONDecodeError, ValueError):
+        warnings.append(f"lock unreadable: {path.relative_to(ROOT)}")
+        return
+    if locked.get("schema_version") != 1:
+        warnings.append(f"lock schema drift: expected 1, got {locked.get('schema_version')!r}")
+    if locked.get("profile") != profile_name:
+        warnings.append(f"lock profile drift: expected {profile_name}, got {locked.get('profile')!r}")
+
+    locked_installed = locked.get("installed_desired", {})
+    if not isinstance(locked_installed, dict):
+        warnings.append("lock installed_desired is malformed")
+        locked_installed = {}
+    current = lock_data(profile_name, config)
+    current_installed = current["installed_desired"]
+    if set(locked_installed) != set(current_installed):
+        warnings.append("lock desired-package membership drift")
+    for name, version in locked_installed.items():
+        if installed.get(name) and installed[name] != version:
+            warnings.append(f"lock drift: {name} {version} -> {installed[name]}")
+
+    comparisons = (
+        ("missing_desired", "missing desired-package set"),
+        ("explicit_unmanaged", "unmanaged explicit-package set"),
+        ("aur_sources", "AUR source pins"),
+        ("cargo_sources", "Cargo source pins"),
+        ("git_sources", "Git source pins"),
+        ("tools", "tool versions"),
+        ("stow_tree_sha256", "Stow tree hash"),
+        ("system_template_sha256", "system template hashes"),
+    )
+    for field, label in comparisons:
+        if locked.get(field) != current.get(field):
+            warnings.append(f"lock drift: {label}")
+
+
+def normalized_git_remote(value: str) -> str:
+    normalized = value.rstrip("/")
+    return normalized[:-4] if normalized.endswith(".git") else normalized
+
+
+def audit_git_sources(config: dict[str, Any], target: Path, warnings: list[str]) -> None:
+    for source in config.get("git_sources", []):
+        destination = target / source["target"]
+        if not (destination / ".git").is_dir():
+            warnings.append(f"Git source missing: {source['name']} ({destination})")
+            continue
+        remote = subprocess.run(
+            ["git", "-C", str(destination), "remote", "get-url", "origin"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            remote.returncode != 0
+            or normalized_git_remote(remote.stdout.strip())
+            != normalized_git_remote(source["repo"])
+        ):
+            warnings.append(f"Git source remote drift: {source['name']}")
+        head = subprocess.run(
+            ["git", "-C", str(destination), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if head.returncode != 0 or head.stdout.strip() != source["rev"]:
+            warnings.append(f"Git source revision drift: {source['name']}")
+        dirty = subprocess.run(
+            ["git", "-C", str(destination), "status", "--porcelain", "--untracked-files=no"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if dirty.returncode != 0 or dirty.stdout.strip():
+            warnings.append(f"Git source tracked changes: {source['name']}")
+
+
+def audit_services(
+    config: dict[str, Any],
+    warnings: list[str],
+    live_target: bool,
+    include_optional_system: bool,
+) -> None:
+    if not shutil.which("systemctl"):
+        return
+    system_services = list(config.get("services", {}).get("system", []))
+    if include_optional_system:
+        system_services += config.get("services", {}).get("optional_system", [])
+    for service in system_services:
+        result = subprocess.run(
+            ["systemctl", "is-enabled", service],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode != 0:
+            warnings.append(f"system service not enabled: {service}")
+    if live_target:
+        user_services = config.get("services", {}).get("user", [])
+        if user_services and not os.environ.get("XDG_RUNTIME_DIR"):
+            warnings.append("cannot audit user services: XDG_RUNTIME_DIR is unset")
+        for service in user_services if os.environ.get("XDG_RUNTIME_DIR") else []:
+            result = subprocess.run(
+                ["systemctl", "--user", "is-enabled", service],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if result.returncode != 0:
+                warnings.append(f"user service not enabled: {service}")
+
+
+def run_state_handler(name: str, action: str) -> tuple[bool, str]:
+    script = ROOT / "state" / name / action
+    if not script.is_file() or not os.access(script, os.X_OK):
+        return False, f"missing state handler: state/{name}/{action}"
+    result = subprocess.run([str(script)], check=False, capture_output=True, text=True)
+    output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
+    return result.returncode == 0, output
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    try:
+        config = load_profile(args.profile)
+        errors = validate_config(config)
+        variables = resolved_variables(config)
+    except ConfigError as error:
+        print(f"ERROR {error}")
+        return 1
+    warnings: list[str] = []
+
+    target = Path(os.environ.get("DOTFILES_TARGET", str(Path.home()))).expanduser()
+    stow_warnings, stow_errors = stow_status(config, target)
+    warnings.extend(stow_warnings)
+    errors.extend(stow_errors)
+
+    for item in config.get("system_templates", []):
+        if item.get("optional") and not args.include_optional_system:
+            continue
+        try:
+            desired = template_content(item, variables)
+        except (OSError, ConfigError) as error:
+            errors.append(f"{item.get('source')}: {error}")
+            continue
+        destination = Path(item["target"])
+        if not destination.exists():
+            label = "optional system file absent" if item.get("optional") else "system file absent"
+            warnings.append(f"{label}: {destination}")
+        elif not destination.is_file():
+            warnings.append(f"system target is not a regular file: {destination}")
+        else:
+            if destination.read_text(errors="replace") != desired:
+                warnings.append(f"system drift: {destination}")
+            expected_mode = int(str(item.get("mode", "0644")), 8)
+            actual_mode = destination.stat().st_mode & 0o7777
+            if actual_mode != expected_mode:
+                warnings.append(
+                    f"system mode drift: {destination} "
+                    f"{actual_mode:04o} -> {expected_mode:04o}"
+                )
+            metadata = destination.stat()
+            if metadata.st_uid != 0 or metadata.st_gid != 0:
+                warnings.append(f"system ownership drift: {destination} is not root:root")
+
+    installed = installed_packages()
+    desired_packages = unique(
+        config.get("manifests", {}).get("pacman", [])
+        + config.get("manifests", {}).get("aur", [])
+    )
+    if shutil.which("pacman"):
+        for package in desired_packages:
+            if package not in installed:
+                warnings.append(f"package missing: {package}")
+
+    cargo_keys = cargo_install_keys()
+    for source in config.get("cargo_sources", []):
+        entries = [key for key in cargo_keys if key.startswith(f"{source['name']} ")]
+        if not entries:
+            warnings.append(f"Cargo package missing: {source['name']}")
+        elif not any(source["rev"] in key for key in entries):
+            warnings.append(f"Cargo source drift: {source['name']} is not installed from {source['rev'][:12]}")
+
+    audit_mounts(warnings)
+    try:
+        audit_timezone(variables, warnings)
+    except ConfigError as error:
+        errors.append(str(error))
+    if not args.skip_lock:
+        try:
+            audit_lock(args.profile, config, installed, warnings)
+        except (ConfigError, OSError) as error:
+            errors.append(f"lock audit failed: {error}")
+
+    live_target = target.resolve(strict=False) == Path.home().resolve(strict=False)
+    if live_target:
+        audit_git_sources(config, target, warnings)
+    else:
+        print(f"INFO Git source audits skipped for non-live target {target}")
+    audit_services(config, warnings, live_target, args.include_optional_system)
+    if live_target:
+        for handler in config.get("state_handlers", []):
+            ok, output = run_state_handler(handler, "audit")
+            if output:
+                for line in output.splitlines():
+                    print(f"STATE {handler}: {line}")
+            if not ok:
+                warnings.append(f"state audit failed: {handler}")
+    else:
+        print(f"INFO state audits skipped for non-live target {target}")
+
+    print(
+        f"SUMMARY profile={args.profile} stow_packages={len(config['stow_packages'])} "
+        f"desired_packages={len(desired_packages)} warnings={len(warnings)} errors={len(errors)}"
+    )
+    for warning in warnings:
+        print(f"WARN {warning}")
+    for error in errors:
+        print(f"ERROR {error}")
+    return 1 if errors or (args.strict and warnings) else 0
+
+
+def pacman_testing_enabled() -> bool:
+    path = Path("/etc/pacman.conf")
+    try:
+        text = path.read_text()
+    except OSError:
+        return False
+    return any(re.search(rf"(?m)^\[{re.escape(repo)}\]\s*$", text) for repo in ("core-testing", "extra-testing", "multilib-testing"))
+
+
+def install_template(
+    item: dict[str, Any], variables: dict[str, str], stamp: str, dry_run: bool
+) -> bool:
+    source = ROOT / item["source"]
+    destination = Path(item["target"])
+    content = template_content(item, variables)
+    expected_mode = int(str(item.get("mode", "0644")), 8)
+    if destination.is_symlink():
+        raise ConfigError(f"system target is an unexpected symlink: {destination}")
+    if destination.exists() and not destination.is_file():
+        raise ConfigError(f"system target is not a regular file: {destination}")
+    content_matches = destination.is_file() and destination.read_text(errors="replace") == content
+    mode_matches = destination.is_file() and (destination.stat().st_mode & 0o7777) == expected_mode
+    ownership_matches = (
+        destination.is_file()
+        and destination.stat().st_uid == 0
+        and destination.stat().st_gid == 0
+    )
+    if content_matches and mode_matches and ownership_matches:
+        print(f"unchanged {destination}")
+        return False
+    backup = Path("/var/backups/dotfiles") / stamp / destination.relative_to("/")
+    if destination.exists():
+        run(["sudo", "install", "-D", "-m", "0600", str(destination), str(backup)], dry_run=dry_run)
+    if content_matches:
+        if not mode_matches:
+            print(f"chmod {expected_mode:04o} {destination}")
+            run(["sudo", "chmod", f"{expected_mode:04o}", str(destination)], dry_run=dry_run)
+        if not ownership_matches:
+            print(f"chown root:root {destination}")
+            run(["sudo", "chown", "root:root", str(destination)], dry_run=dry_run)
+        return True
+    print(f"install {source.relative_to(ROOT)} -> {destination}")
+    if dry_run:
+        return True
+    temporary_name = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as handle:
+            handle.write(content)
+            temporary_name = handle.name
+        run(["sudo", "install", "-D", "-m", str(item.get("mode", "0644")), temporary_name, str(destination)])
+    finally:
+        if temporary_name:
+            Path(temporary_name).unlink(missing_ok=True)
+    return True
+
+
+def configured_timezone(variables: dict[str, str]) -> tuple[str, Path] | None:
+    name = variables.get("TIMEZONE")
+    if not name:
+        return None
+    relative = Path(name)
+    zone_root = Path("/usr/share/zoneinfo")
+    candidate = zone_root / relative
+    if relative.is_absolute() or ".." in relative.parts or not candidate.is_file():
+        raise ConfigError(f"invalid TIMEZONE: {name!r}")
+    return name, candidate.resolve()
+
+
+def audit_timezone(variables: dict[str, str], warnings: list[str]) -> None:
+    configured = configured_timezone(variables)
+    if configured is None:
+        return
+    name, expected = configured
+    localtime = Path("/etc/localtime")
+    if not localtime.exists() or localtime.resolve() != expected:
+        warnings.append(f"timezone drift: expected {name}")
+
+
+def install_timezone(variables: dict[str, str], dry_run: bool) -> None:
+    configured = configured_timezone(variables)
+    if configured is None:
+        return
+    name, expected = configured
+    localtime = Path("/etc/localtime")
+    if localtime.exists() and localtime.resolve() == expected:
+        print(f"unchanged timezone {name}")
+        return
+    run(["sudo", "timedatectl", "set-timezone", name], dry_run=dry_run)
+
+
+def install_git_sources(config: dict[str, Any], target: Path, dry_run: bool) -> None:
+    if config.get("git_sources") and not shutil.which("git"):
+        raise ConfigError("git is required for pinned user sources")
+    for source in config.get("git_sources", []):
+        destination = target / source["target"]
+        label = source["name"]
+        if not destination.exists():
+            if dry_run:
+                run(["git", "clone", "--no-checkout", source["repo"], str(destination)], dry_run=True)
+                run(["git", "-C", str(destination), "checkout", "--detach", source["rev"]], dry_run=True)
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            run(["git", "clone", "--no-checkout", source["repo"], str(destination)])
+            run(["git", "-C", str(destination), "checkout", "--detach", source["rev"]])
+            continue
+        if not (destination / ".git").is_dir():
+            raise ConfigError(f"Git source target is not a repository: {destination}")
+        remote = subprocess.run(
+            ["git", "-C", str(destination), "remote", "get-url", "origin"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            remote.returncode != 0
+            or normalized_git_remote(remote.stdout.strip())
+            != normalized_git_remote(source["repo"])
+        ):
+            raise ConfigError(f"Git source remote mismatch: {label}")
+        dirty = subprocess.run(
+            ["git", "-C", str(destination), "status", "--porcelain", "--untracked-files=no"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if dirty.returncode != 0 or dirty.stdout.strip():
+            raise ConfigError(f"Git source has tracked changes: {label}")
+        head = subprocess.run(
+            ["git", "-C", str(destination), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if head.returncode == 0 and head.stdout.strip() == source["rev"]:
+            print(f"Git source unchanged: {label}")
+            continue
+        present = subprocess.run(
+            ["git", "-C", str(destination), "cat-file", "-e", f"{source['rev']}^{{commit}}"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if present.returncode != 0:
+            run(
+                ["git", "-C", str(destination), "fetch", "--depth=1", "origin", source["rev"]],
+                dry_run=dry_run,
+            )
+        run(
+            ["git", "-C", str(destination), "checkout", "--detach", source["rev"]],
+            dry_run=dry_run,
+        )
+
+
+def bootstrap_paru(config: dict[str, Any], dry_run: bool) -> None:
+    if shutil.which("paru"):
+        return
+    source = config.get("bootstrap", {}).get("paru")
+    if not source:
+        raise ConfigError("paru is missing and no pinned bootstrap source is configured")
+    command = ["git", "clone", "--no-checkout", source["repo"], "PARU_BUILD_DIR"]
+    if dry_run:
+        run(command, dry_run=True)
+        run(["git", "-C", "PARU_BUILD_DIR", "checkout", "--detach", source["rev"]], dry_run=True)
+        run(["makepkg", "-si", "--needed"], dry_run=True)
+        return
+    with tempfile.TemporaryDirectory(prefix="dotfiles-paru-") as directory:
+        run(["git", "clone", "--no-checkout", source["repo"], directory])
+        run(["git", "-C", directory, "checkout", "--detach", source["rev"]])
+        run(["makepkg", "-si", "--needed"], check=True, dry_run=False, cwd=directory)
+
+
+def install_aur_source(source: dict[str, str], dry_run: bool) -> None:
+    label = f"AUR_BUILD_{source['name']}"
+    if dry_run:
+        run(["git", "clone", "--no-checkout", source["repo"], label], dry_run=True)
+        run(["git", "-C", label, "checkout", "--detach", source["rev"]], dry_run=True)
+        run(["makepkg", "-si", "--needed"], dry_run=True)
+        return
+    with tempfile.TemporaryDirectory(prefix=f"dotfiles-{source['name']}-") as directory:
+        run(["git", "clone", "--no-checkout", source["repo"], directory])
+        run(["git", "-C", directory, "checkout", "--detach", source["rev"]])
+        run(["makepkg", "-si", "--needed"], cwd=directory)
+
+
+def install_packages(config: dict[str, Any], dry_run: bool) -> None:
+    if not shutil.which("pacman"):
+        raise ConfigError("package installation is supported only on Arch Linux; use --skip-packages")
+    installed = installed_packages()
+    official = [name for name in config.get("manifests", {}).get("pacman", []) if name not in installed]
+    aur = [name for name in config.get("manifests", {}).get("aur", []) if name not in installed]
+    if official:
+        run(["sudo", "pacman", "-S", "--needed", *official], dry_run=dry_run)
+    else:
+        print("packages: all official packages already installed")
+    if aur:
+        bootstrap_paru(config, dry_run)
+        sources = {source["name"]: source for source in config.get("aur_sources", [])}
+        for name in aur:
+            if name == "paru":
+                continue
+            install_aur_source(sources[name], dry_run)
+    else:
+        print("packages: all AUR packages already installed")
+
+    if config.get("cargo_sources"):
+        if not shutil.which("rustup") and not dry_run:
+            raise ConfigError("rustup is required for Cargo source installs")
+        for source in config["cargo_sources"]:
+            toolchain = source["toolchain"]
+            run(["rustup", "toolchain", "install", toolchain], dry_run=dry_run)
+            run(
+                [
+                    "cargo",
+                    f"+{toolchain}",
+                    "install",
+                    "--git",
+                    source["repo"],
+                    "--rev",
+                    source["rev"],
+                    "--locked",
+                    source["name"],
+                ],
+                dry_run=dry_run,
+            )
+
+
+def run_stow(config: dict[str, Any], target: Path, dry_run: bool) -> None:
+    stow = shutil.which("stow")
+    if not stow:
+        raise ConfigError("GNU Stow is required")
+    if not target.exists():
+        if dry_run:
+            raise ConfigError(f"Stow target does not exist: {target}")
+        target.mkdir(parents=True)
+    command = [
+        stow,
+        f"--dir={ROOT}",
+        f"--target={target}",
+        "--no-folding",
+        "--restow",
+    ]
+    if dry_run:
+        command.extend(["--simulate", "--verbose=1"])
+    command.extend(config.get("stow_packages", []))
+    run(command)
+
+
+def cmd_apply(args: argparse.Namespace) -> int:
+    try:
+        config = load_profile(args.profile)
+        errors = validate_config(config)
+        if errors:
+            raise ConfigError("; ".join(errors))
+        variables = resolved_variables(config)
+        target = Path(os.environ.get("DOTFILES_TARGET", str(Path.home()))).expanduser()
+        _, conflicts = stow_status(config, target)
+        if conflicts:
+            raise ConfigError("preflight failed: " + "; ".join(conflicts))
+        for item in config.get("system_templates", []):
+            template_content(item, variables)
+        configured_timezone(variables)
+
+        stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+        templates = [] if args.skip_system else config.get("system_templates", [])
+        pacman_template = next((item for item in templates if item["target"] == "/etc/pacman.conf"), None)
+        if pacman_template:
+            install_template(pacman_template, variables, stamp, args.dry_run)
+        elif not args.skip_packages and pacman_testing_enabled() and not args.allow_testing:
+            raise ConfigError("testing repositories are enabled; apply the system layer or pass --allow-testing")
+
+        if not args.skip_packages:
+            install_packages(config, args.dry_run)
+
+        run_stow(config, target, args.dry_run)
+
+        live_target = target.resolve(strict=False) == Path.home().resolve(strict=False)
+        if not args.skip_state and live_target:
+            install_git_sources(config, target, args.dry_run)
+
+        system_changed = False
+        for item in templates:
+            if item is pacman_template:
+                continue
+            if item.get("optional") and not args.include_optional_system:
+                print(f"skip optional system template {item['target']}")
+                continue
+            system_changed |= install_template(item, variables, stamp, args.dry_run)
+        if templates and system_changed:
+            run(["sudo", "systemctl", "daemon-reload"], dry_run=args.dry_run)
+
+        if not args.skip_system:
+            install_timezone(variables, args.dry_run)
+
+        if not args.skip_state and live_target:
+            for handler in config.get("state_handlers", []):
+                script = ROOT / "state" / handler / "apply"
+                if not script.is_file():
+                    raise ConfigError(f"missing state handler: {script}")
+                run([str(script)], dry_run=args.dry_run)
+        elif not args.skip_state:
+            print(f"state apply skipped for non-live target {target}")
+
+        if not args.skip_system:
+            system_services = list(config.get("services", {}).get("system", []))
+            if args.include_optional_system:
+                system_services += config.get("services", {}).get("optional_system", [])
+            if system_services:
+                for service in system_services:
+                    command = ["sudo", "systemctl", "enable"]
+                    if args.start_services:
+                        command.append("--now")
+                    command.append(service)
+                    run(command, dry_run=args.dry_run)
+        user_services = config.get("services", {}).get("user", [])
+        if live_target and user_services:
+            if not os.environ.get("XDG_RUNTIME_DIR") and not args.dry_run:
+                raise ConfigError("XDG_RUNTIME_DIR is required to enable user services")
+            run(["systemctl", "--user", "daemon-reload"], dry_run=args.dry_run)
+            for service in user_services:
+                command = ["systemctl", "--user", "enable"]
+                if args.start_services:
+                    command.append("--now")
+                command.append(service)
+                run(command, dry_run=args.dry_run)
+
+        if not args.dry_run and not args.skip_system:
+            print("NOTE review system/README.md before regenerating initramfs/GRUB or rebooting")
+        return 0
+    except (ConfigError, OSError, subprocess.CalledProcessError) as error:
+        print(f"dotfiles: {error}", file=sys.stderr)
+        return 1
+
+
+def cmd_capture(args: argparse.Namespace) -> int:
+    try:
+        config = load_profile(args.profile)
+    except ConfigError as error:
+        print(f"dotfiles: {error}", file=sys.stderr)
+        return 1
+    failed = False
+    for handler in config.get("state_handlers", []):
+        script = ROOT / "state" / handler / "capture"
+        if not script.is_file():
+            print(f"WARN missing state handler: {script}")
+            failed = True
+        else:
+            try:
+                run([str(script)], dry_run=args.dry_run)
+            except subprocess.CalledProcessError:
+                failed = True
+    return 1 if failed else 0
+
+
+def first_version_line(command: str) -> str | None:
+    executable = shutil.which(command)
+    if not executable:
+        return None
+    result = subprocess.run([executable, "--version"], check=False, capture_output=True, text=True)
+    lines = (result.stdout + "\n" + result.stderr).strip().splitlines()
+    if command == "pacman":
+        match = re.search(r"Pacman v[^\n]+", result.stdout)
+        if match:
+            return match.group(0).strip()
+    return lines[0] if lines else f"exit {result.returncode}"
+
+
+def stow_tree_digest(config: dict[str, Any]) -> str:
+    expected, _ = package_files(config)
+    digest = hashlib.sha256()
+    for relative, source in sorted(expected.items(), key=lambda pair: str(pair[0])):
+        digest.update(str(relative).encode())
+        digest.update(b"\0")
+        digest.update(source.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def lock_data(profile_name: str, config: dict[str, Any]) -> dict[str, Any]:
+    installed = installed_packages()
+    desired = unique(
+        config.get("manifests", {}).get("pacman", [])
+        + config.get("manifests", {}).get("aur", [])
+    )
+    explicit: list[str] = []
+    if shutil.which("pacman"):
+        result = subprocess.run(["pacman", "-Qqe"], check=False, capture_output=True, text=True)
+        explicit = result.stdout.split()
+    rendered_hashes: dict[str, str] = {}
+    variables = resolved_variables(config)
+    for item in config.get("system_templates", []):
+        content = template_content(item, variables).encode()
+        rendered_hashes[item["target"]] = hashlib.sha256(content).hexdigest()
+    return {
+        "schema_version": 1,
+        "profile": profile_name,
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "installed_desired": {name: installed[name] for name in desired if name in installed},
+        "missing_desired": [name for name in desired if name not in installed],
+        "explicit_unmanaged": {name: installed[name] for name in explicit if name not in desired and name in installed},
+        "aur_sources": config.get("aur_sources", []),
+        "cargo_sources": config.get("cargo_sources", []),
+        "git_sources": config.get("git_sources", []),
+        "tools": {
+            name: version
+            for name in ("stow", "pacman", "paru", "python3", "rustc", "codex")
+            if (version := first_version_line(name)) is not None
+        },
+        "stow_tree_sha256": stow_tree_digest(config),
+        "system_template_sha256": rendered_hashes,
+    }
+
+
+def cmd_lock(args: argparse.Namespace) -> int:
+    try:
+        config = load_profile(args.profile)
+        errors = validate_config(config)
+        if errors:
+            raise ConfigError("; ".join(errors))
+        data = lock_data(args.profile, config)
+    except (ConfigError, OSError) as error:
+        print(f"dotfiles: {error}", file=sys.stderr)
+        return 1
+    text = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    if args.dry_run:
+        print(text, end="")
+        return 0
+    lock_dir = ROOT / "locks"
+    lock_dir.mkdir(exist_ok=True)
+    dated = lock_dir / f"{args.profile}-{datetime.now().astimezone():%Y-%m-%d}.json"
+    latest = lock_dir / f"{args.profile}.json"
+    for path in (dated, latest):
+        temporary = path.with_name(f".{path.name}.new")
+        temporary.write_text(text)
+        os.replace(temporary, path)
+    print(f"wrote {latest.relative_to(ROOT)}")
+    print(f"wrote {dated.relative_to(ROOT)}")
+    return 0
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(description=__doc__)
+    commands = root.add_subparsers(dest="command", required=True)
+
+    audit = commands.add_parser("audit", help="report configuration drift without changing it")
+    audit.add_argument("--profile", default="workstation")
+    audit.add_argument("--strict", action="store_true", help="return nonzero for warnings as well as errors")
+    audit.add_argument("--skip-lock", action="store_true", help="do not compare with the latest lock")
+    audit.add_argument(
+        "--include-optional-system",
+        action="store_true",
+        help="also audit opt-in Snapper templates and services",
+    )
+    audit.add_argument("--dry-run", "--simulate", action="store_true", help=argparse.SUPPRESS)
+    audit.set_defaults(func=cmd_audit)
+
+    apply = commands.add_parser("apply", help="install the selected additive profile")
+    apply.add_argument("--profile", default="workstation")
+    apply.add_argument("--dry-run", "--simulate", action="store_true")
+    apply.add_argument("--skip-packages", action="store_true")
+    apply.add_argument("--skip-system", action="store_true")
+    apply.add_argument("--skip-state", action="store_true")
+    apply.add_argument("--include-optional-system", action="store_true")
+    apply.add_argument("--start-services", action="store_true", help="start enabled services immediately")
+    apply.add_argument("--allow-testing", action="store_true", help="allow package installs while testing repositories are enabled")
+    apply.set_defaults(func=cmd_apply)
+
+    capture = commands.add_parser("capture", help="run explicit, reviewable state exporters")
+    capture.add_argument("--profile", default="workstation")
+    capture.add_argument("--dry-run", "--simulate", action="store_true")
+    capture.set_defaults(func=cmd_capture)
+
+    lock = commands.add_parser("lock", help="snapshot desired package and source versions")
+    lock.add_argument("--profile", default="workstation")
+    lock.add_argument("--dry-run", "--simulate", action="store_true")
+    lock.set_defaults(func=cmd_lock)
+    return root
+
+
+def main() -> int:
+    arguments = parser().parse_args()
+    return arguments.func(arguments)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

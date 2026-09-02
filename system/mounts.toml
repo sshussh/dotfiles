@@ -1,0 +1,23 @@
+# Semantic mount expectations. UUID/PARTUUID values are deliberately omitted:
+# they are unique to each installation and must never be cloned.
+schema_version = 1
+
+[[mount]]
+target = "/"
+fstype = "btrfs"
+required_options = ["compress=zstd:3", "ssd", "discard=async", "subvol=/@"]
+
+[[mount]]
+target = "/home"
+fstype = "btrfs"
+required_options = ["compress=zstd:3", "ssd", "discard=async", "subvol=/@home"]
+
+[[mount]]
+target = "/boot"
+fstype = "vfat"
+required_options = ["fmask=0077", "dmask=0077"]
+
+[[mount]]
+target = "/mnt/storage"
+fstype = "btrfs"
+required_options = ["noatime", "compress=zstd:3", "discard=async", "subvol=/@storage"]

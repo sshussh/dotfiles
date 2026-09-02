@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "OpenRGB files are direct mutable Stow links; no separate import is performed"

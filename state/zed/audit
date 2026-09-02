@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source_dir="$HOME/.local/share/zed/extensions/installed"
+[[ -d "$source_dir" ]] || { echo "Zed extensions directory is absent" >&2; exit 1; }
+temporary=$(mktemp)
+trap 'rm -f "$temporary"' EXIT
+find "$source_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort >"$temporary"
+diff -u "$(dirname "$0")/extensions.txt" "$temporary"
+echo "Zed extensions match the manifest"

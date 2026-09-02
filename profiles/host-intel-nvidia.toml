@@ -1,0 +1,14 @@
+schema_version = 1
+variables = { HOST_PROFILE = "intel-nvidia" }
+stow_packages = ["hardware"]
+state_handlers = ["openrgb"]
+
+[manifests]
+pacman = [
+  "bluez", "bluez-utils", "intel-ucode", "iw", "libva-nvidia-driver",
+  "nvidia-open", "openrgb", "qt5-wayland", "sof-firmware", "usbutils",
+  "wireless-regdb"
+]
+
+[services]
+system = ["bluetooth.service"]

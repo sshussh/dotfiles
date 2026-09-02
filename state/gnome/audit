@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+[[ -s "$repo/gnome/extensions.txt" ]] || {
+  echo "GNOME extension manifest missing" >&2
+  exit 1
+}
+"$repo/scripts/export-gnome" --check
+
+expect() {
+  local schema="$1" key="$2" wanted="$3" actual
+  actual="$(gsettings get "$schema" "$key")"
+  [[ "$actual" == "$wanted" ]] || {
+    echo "GNOME drift: $schema $key is $actual, expected $wanted" >&2
+    exit 1
+  }
+}
+
+expect org.gnome.desktop.screensaver lock-enabled true
+expect org.gnome.desktop.screensaver lock-delay 'uint32 0'
+expect org.gnome.desktop.session idle-delay 'uint32 300'
+expect org.gnome.desktop.file-sharing require-password "'always'"
+wallpaper="file://$HOME/.local/share/backgrounds/dotfiles-wallpaper.jpg"
+expect org.gnome.desktop.background picture-uri "'$wallpaper'"
+expect org.gnome.desktop.background picture-uri-dark "'$wallpaper'"
+echo "GNOME portable snapshot and safety overrides match"

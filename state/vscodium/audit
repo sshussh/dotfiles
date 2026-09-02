@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+command -v codium >/dev/null 2>&1 || { echo "VSCodium is not installed" >&2; exit 1; }
+manifest="$(dirname "$0")/extensions.txt"
+temporary=$(mktemp)
+trap 'rm -f "$temporary"' EXIT
+codium --list-extensions --show-versions | LC_ALL=C sort >"$temporary"
+diff -u "$manifest" "$temporary"
+echo "VSCodium extensions match the pinned manifest"

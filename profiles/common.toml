@@ -1,0 +1,176 @@
+schema_version = 1
+variables = { LOCALE = "en_US.UTF-8", KEYMAP = "us", XKB_LAYOUT = "us", GRUB_DISTRIBUTOR = "Arch", TIMEZONE = "Asia/Amman" }
+stow_packages = [
+  "zsh-bootstrap", "terminal", "gnome-desktop", "matugen", "zed",
+  "niri", "fontconfig", "xresources"
+]
+state_handlers = ["login-shell", "pre-commit", "gnome", "dms", "niri", "vscodium", "zed"]
+
+[manifests]
+pacman = [
+  "base", "base-devel", "btrfs-progs", "dosfstools", "efibootmgr", "grub",
+  "grub-btrfs", "inotify-tools", "linux", "linux-firmware", "man-db",
+  "man-pages", "man-pages-ar", "mkinitcpio", "networkmanager", "openssh",
+  "pacman-contrib", "plymouth", "reflector", "smartmontools", "snap-pac",
+  "snapper", "sudo", "ufw", "zram-generator",
+  "gst-plugin-pipewire", "pipewire", "pipewire-alsa", "pipewire-jack",
+  "pipewire-pulse", "wireplumber", "gnome-keyring", "gvfs", "loupe",
+  "nautilus", "noto-fonts", "noto-fonts-extra", "papers",
+  "xdg-desktop-portal-gnome", "xdg-user-dirs-gtk", "xdg-utils",
+  "bat", "btop", "curl", "dconf", "fastfetch", "fd", "ffmpeg", "fish",
+  "fontconfig", "fzf", "ghostty", "git", "imagemagick", "iproute2", "kitty",
+  "libjxl", "lsd", "matugen", "neovim", "pavucontrol", "python",
+  "python-gobject", "ripgrep", "starship", "stow", "ttf-jetbrains-mono",
+  "ttf-jetbrains-mono-nerd", "zed", "zoxide", "zsh",
+  "cava", "dms-shell-niri", "kimageformats", "niri", "tuned-ppd",
+  "xwayland-satellite",
+  "baobab", "extension-manager", "gdm", "gnome-backgrounds",
+  "gnome-calculator", "gnome-characters", "gnome-clocks", "gnome-control-center",
+  "gnome-disk-utility", "gnome-font-viewer", "gnome-logs", "gnome-session",
+  "gnome-settings-daemon", "gnome-shell", "gnome-shell-extension-appindicator",
+  "gnome-shell-extension-vitals", "gnome-shell-extensions", "gnome-system-monitor",
+  "gnome-text-editor", "gnome-tweaks", "gnome-weather",
+  "cmake", "github-cli", "git-filter-repo", "llvm", "pre-commit", "rustup", "tokei", "uv", "wget"
+]
+aur = [
+  "bibata-cursor-theme", "gnome-shell-extension-blur-my-shell",
+  "gnome-shell-extension-clipboard-indicator", "gnome-shell-extension-dash-to-dock",
+  "grok-build-bin", "paru", "vscodium-bin", "zen-browser-bin"
+]
+
+[services]
+system = [
+  "NetworkManager.service", "NetworkManager-dispatcher.service",
+  "gdm.service", "grub-btrfsd.service", "smartd.service", "ufw.service",
+  "systemd-resolved.service", "systemd-timesyncd.service", "reflector.timer"
+]
+optional_system = [
+  "snapper-cleanup.timer", "snapper-timeline.timer", "btrfs-scrub@-.timer",
+  "btrfs-scrub@mnt-storage.timer"
+]
+user = ["matugen-wallpaper.service"]
+
+[bootstrap.paru]
+repo = "https://aur.archlinux.org/paru.git"
+rev = "329be2113c590046cb29858c23d9b96a8d7bd586"
+
+[[cargo_sources]]
+name = "pyrs"
+repo = "https://github.com/sshussh/pyrs.git"
+rev = "5b009a5177678fc8e051235b6dc4c3ecaf1da020"
+toolchain = "1.98.0"
+
+[[git_sources]]
+name = "zinit"
+repo = "https://github.com/zdharma-continuum/zinit.git"
+rev = "9a2898ba2a3a4549035c164c9c835bfd15317189"
+target = ".local/share/zinit/zinit.git"
+[[git_sources]]
+name = "ohmyzsh"
+repo = "https://github.com/ohmyzsh/ohmyzsh.git"
+rev = "9112b53fa8b5ab556c7c893aa8be8a247ac512a0"
+target = ".local/share/zinit/ohmyzsh.git"
+[[git_sources]]
+name = "fzf-tab"
+repo = "https://github.com/Aloxaf/fzf-tab.git"
+rev = "24105b15714bfec37989ed5c5b6e60f572253019"
+target = ".local/share/zinit/plugins/Aloxaf---fzf-tab"
+[[git_sources]]
+name = "zsh-autosuggestions"
+repo = "https://github.com/zsh-users/zsh-autosuggestions.git"
+rev = "85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5"
+target = ".local/share/zinit/plugins/zsh-users---zsh-autosuggestions"
+[[git_sources]]
+name = "zsh-completions"
+repo = "https://github.com/zsh-users/zsh-completions.git"
+rev = "8cd3bd78e8b1f17271cfdd8269074e5557d8d7b8"
+target = ".local/share/zinit/plugins/zsh-users---zsh-completions"
+[[git_sources]]
+name = "zsh-syntax-highlighting"
+repo = "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+rev = "2fc57d63067c18b1100ecdbf684fa5baf49459d1"
+target = ".local/share/zinit/plugins/zsh-users---zsh-syntax-highlighting"
+
+[[aur_sources]]
+name = "bibata-cursor-theme"
+repo = "https://aur.archlinux.org/bibata-cursor-theme.git"
+rev = "87ddbd840d7793d9fa95767ff4c078c736e9f0ad"
+[[aur_sources]]
+name = "gnome-shell-extension-blur-my-shell"
+repo = "https://aur.archlinux.org/gnome-shell-extension-blur-my-shell.git"
+rev = "8161ae31d9eee1fe235a203c2bb4512793c2c310"
+[[aur_sources]]
+name = "gnome-shell-extension-clipboard-indicator"
+repo = "https://aur.archlinux.org/gnome-shell-extension-clipboard-indicator.git"
+rev = "275daf0bd317ff8df1db651e50bcb31f1f9b4c47"
+[[aur_sources]]
+name = "gnome-shell-extension-dash-to-dock"
+repo = "https://aur.archlinux.org/gnome-shell-extension-dash-to-dock.git"
+rev = "a1733fcd3f774b768a701dc8fd1414934645f478"
+[[aur_sources]]
+name = "grok-build-bin"
+repo = "https://aur.archlinux.org/grok-build-bin.git"
+rev = "23102b2f4f2d022263858af006d66f0a137a85e0"
+[[aur_sources]]
+name = "paru"
+repo = "https://aur.archlinux.org/paru.git"
+rev = "329be2113c590046cb29858c23d9b96a8d7bd586"
+[[aur_sources]]
+name = "vscodium-bin"
+repo = "https://aur.archlinux.org/vscodium-bin.git"
+rev = "0239db5250f650f9c3a38947c6b12ed132294f49"
+[[aur_sources]]
+name = "zen-browser-bin"
+repo = "https://aur.archlinux.org/zen-browser-bin.git"
+rev = "7706cd72e6f0559e7ee2c11f1770f9a8355bfac2"
+
+[[system_templates]]
+source = "system/etc/pacman.conf"
+target = "/etc/pacman.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/xdg/reflector/reflector.conf"
+target = "/etc/xdg/reflector/reflector.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/mkinitcpio.conf"
+target = "/etc/mkinitcpio.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/default/grub"
+target = "/etc/default/grub"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/systemd/zram-generator.conf"
+target = "/etc/systemd/zram-generator.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/systemd/system/grub-btrfsd.service.d/override.conf"
+target = "/etc/systemd/system/grub-btrfsd.service.d/override.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/systemd/coredump.conf.d/50-remediation-limits.conf"
+target = "/etc/systemd/coredump.conf.d/50-remediation-limits.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/locale.conf"
+target = "/etc/locale.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/vconsole.conf"
+target = "/etc/vconsole.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/X11/xorg.conf.d/00-keyboard.conf"
+target = "/etc/X11/xorg.conf.d/00-keyboard.conf"
+mode = "0644"
+[[system_templates]]
+source = "system/etc/snapper/configs/root"
+target = "/etc/snapper/configs/root"
+mode = "0644"
+optional = true
+[[system_templates]]
+source = "system/etc/snapper/configs/home"
+target = "/etc/snapper/configs/home"
+mode = "0644"
+optional = true

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+desired=/usr/bin/zsh
+[[ -x "$desired" ]] || { echo "login-shell: zsh is not installed" >&2; exit 1; }
+grep -Fxq "$desired" /etc/shells || grep -Fxq "$(readlink -f "$desired")" /etc/shells || {
+  echo "login-shell: $desired is not listed in /etc/shells" >&2
+  exit 1
+}
+current="$(getent passwd "$(id -un)" | cut -d: -f7)"
+if [[ "$(readlink -f "$current" 2>/dev/null || printf '%s' "$current")" != "$(readlink -f "$desired")" ]]; then
+  chsh -s "$desired"
+fi
+echo "login shell is $desired"

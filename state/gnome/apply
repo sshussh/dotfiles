@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+"$repo/scripts/load-gnome"
+"$repo/scripts/setup-gnome-extensions"
+
+# Never reproduce the unsafe source-machine values that were found during the
+# audit. These commands are idempotent and do not contain private state.
+gsettings set org.gnome.desktop.screensaver lock-enabled true
+gsettings set org.gnome.desktop.screensaver lock-delay 0
+gsettings set org.gnome.desktop.session idle-delay 300
+gsettings set org.gnome.desktop.file-sharing require-password 'always'
+
+wallpaper="$HOME/.local/share/backgrounds/dotfiles-wallpaper.jpg"
+if [[ -f "$wallpaper" ]]; then
+  uri="file://$wallpaper"
+  gsettings set org.gnome.desktop.background picture-uri "$uri"
+  gsettings set org.gnome.desktop.background picture-uri-dark "$uri"
+  palette="$HOME/.local/bin/matugen-wallpaper"
+  [[ -x "$palette" ]] || {
+    echo "gnome apply: missing Stow-managed $palette" >&2
+    exit 1
+  }
+  "$palette" "$wallpaper"
+fi

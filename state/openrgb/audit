@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+profile="$HOME/.config/OpenRGB/primary.orp"
+[[ -L "$profile" && "$(readlink -f "$profile")" == "$repo/hardware/.config/OpenRGB/primary.orp" ]] || {
+  echo "OpenRGB primary profile is not managed by Stow" >&2
+  exit 1
+}
+echo "OpenRGB primary profile is managed by Stow"

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+config="$HOME/.config/niri/config.kdl"
+[[ -L "$config" && "$(readlink -f "$config")" == "$repo/niri/.config/niri/config.kdl" ]] || {
+  echo "Niri config is not linked to the repository" >&2
+  exit 1
+}
+echo "Niri config is managed by Stow"

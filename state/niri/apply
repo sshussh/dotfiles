@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Niri runtime state is machine-local; static config is managed by Stow"
