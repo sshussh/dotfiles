@@ -1,98 +1,170 @@
-# Dotfiles
+# Reproducible Arch workstation
 
-This repository uses GNU Stow with `--no-folding`. Each package mirrors the
-path it should occupy under `$HOME`, so `~/.config/ghostty/config` is stored as
-`terminal/.config/ghostty/config`. Stow creates those parent directories as
-real directories and links only the files this repo owns. Application-generated
-files next to them (GTK bookmarks, OpenRGB logs, Matugen palettes) stay on the
-machine and out of git.
+This repository rebuilds the user configuration and selected system policy for
+an Arch Linux Intel/NVIDIA workstation running both Niri and GNOME. GNU Stow
+owns files below `$HOME`; the `dotfiles` controller installs missing software,
+copies reviewed `/etc` templates, restores portable application state, and
+records version/source locks.
+
+The boundary is deliberately post-install: disks, bootstrapping, networking,
+the user account, and working `sudo` must already exist. The result is highly
+repeatable, but not a bit-for-bit image. Filesystem UUIDs, credentials, browser
+profiles, private Codex state, and volatile caches remain machine-local. The
+reviewed OpenRGB package is the deliberate exception for hardware metadata: it
+contains this host class's detector/profile data and must be reviewed before a
+public push.
+
+## New-machine quick start
+
+Install the controller prerequisites first:
 
 ```sh
-git clone git@github.com:sshussh/dotfiles.git ~/.dotfiles
+sudo pacman -S --needed git python stow base-devel
+git clone https://github.com/sshussh/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-./install.sh
 ```
 
-`./install.sh` checks for Stow, Python, dconf, DMS, Matugen, fonts, and the apps
-these configs assume (including paru on Arch, Extension Manager, and Zen
-Browser), and offers to install whatever is missing. It then restows the
-packages, enables `matugen-wallpaper.service`, loads the sanitized GNOME dconf
-snapshot, installs/enables the listed GNOME extensions, sets Zen as the
-default browser, makes zsh the login shell, and generates a palette from the
-current wallpaper. Use `--skip-deps` to skip the check, or `-y` to install
-missing packages without asking.
-
-On a machine that already has regular files at these paths, preview first:
+Always inspect the two read-only views before applying:
 
 ```sh
-./install.sh --simulate
+./dotfiles audit --profile workstation
+./dotfiles apply --profile workstation --dry-run
 ```
 
-Then replace the conflicting files with Stow links (a timestamped copy is
-written under `~/.cache/dotfiles-stow-backup-*`). `--force` skips paths that
-are already the packaged file, unfolds leftover directory-level Stow folds,
-and restores the backup if Stow aborts:
+Then apply the standard profile:
 
 ```sh
-./install.sh --force
+./dotfiles apply --profile workstation
 ```
 
-Do **not** use Stow `--adopt`. Adoption copies whatever is already on the
-machine into this public repository, including SSH metadata and generated
-palettes.
+The real apply is interactive where pacman, AUR builds, or root writes require
+confirmation. Its order is intentional:
 
-## Packages
+1. validate the full profile and reject Stow conflicts;
+2. install the stable `pacman.conf` before resolving packages;
+3. install only packages that are absent—never prune, upgrade, or downgrade an
+   already-installed package;
+4. build missing AUR packages from pinned PKGBUILD commits and install `pyrs`
+   with its pinned Git commit and Rust 1.98.0 toolchain;
+5. restow the user packages with `--no-folding`;
+6. install Zinit, Oh My Zsh, and four plugins at full Git commits;
+7. converge `/etc` content, mode, and ownership and set the profile timezone;
+8. restore portable state, including the Zsh login shell and local pre-commit
+   hook; then reload and enable declared services.
 
-| Package | Deploys |
+Snapper configs and Btrfs scrub timers are gated separately. After verifying
+the subvolume and mount layout described in [`system/README.md`](system/README.md),
+apply them with:
+
+```sh
+./dotfiles apply --profile workstation --include-optional-system
+```
+
+The controller does not regenerate initramfs or GRUB and does not start newly
+enabled services unless `--start-services` is supplied. Review the post-apply
+checklist in `system/README.md` before rebooting.
+
+## Commands
+
+| Command | Purpose |
 | --- | --- |
-| `zsh-bootstrap` | `~/.zshenv`, which sets `ZDOTDIR` so the rest of zsh lives under `~/.config/zsh` |
-| `gnome-desktop` | Desktop associations, user directories, autostart, pavucontrol, session environment, and the GNOME-only wallpaper watcher |
-| `matugen` | DMS-compatible Matugen templates, post-processing helpers, and XDG discovery links for generated extras/icons/Helium |
-| `terminal` | Fish, Zsh, Ghostty, Kitty, btop, and Neovim configuration wired to DMS theme filenames |
-| `zed` | Zed settings, keymap, and tasks wired to DMS's generated DankShell theme |
-| `hardware` | OpenRGB profiles and Qt preference files |
+| `./dotfiles audit` | Report Stow, package, system-template, service, mount, Cargo, state, and lock drift without writing |
+| `./dotfiles audit --strict` | Return nonzero for warnings; used by the local reproducibility check |
+| `./dotfiles apply --dry-run` | Run GNU Stow's real simulator and print every other proposed operation |
+| `./dotfiles apply` | Apply the additive workstation contract |
+| `./dotfiles capture` | Run explicit state exporters; review the resulting diff before committing |
+| `./dotfiles lock` | Write both current and dated package/source snapshots under `locks/` |
 
-`~/.zshenv` comes from `zsh-bootstrap`. After stowing, `install.sh` also
-creates relative discovery links (not Stow links) so GNOME can find generated
-assets without folding those directories into git:
+Useful apply controls:
 
-- `~/.local/bin/matugen-wallpaper` and `matugen-helium-browser`
-- `~/.local/share/themes/Matugen`, `icons/Matugen`, and `applications/helium.desktop`
+- `--skip-packages`, `--skip-system`, and `--skip-state` omit an entire phase.
+- `--include-optional-system` opts into Snapper and Btrfs timer policy.
+- `--start-services` changes service activation from `enable` to `enable --now`.
+- `--allow-testing` is an explicit escape hatch when testing repositories are
+  enabled and the system phase is skipped.
+- `DOTFILES_TARGET=/path` changes the Stow target. State operations are
+  automatically skipped unless the target is the real home directory.
+- `DOTFILES_VAR_LOCALE`, `DOTFILES_VAR_KEYMAP`,
+  `DOTFILES_VAR_XKB_LAYOUT`, `DOTFILES_VAR_GRUB_DISTRIBUTOR`, and
+  `DOTFILES_VAR_TIMEZONE` override profile variables.
 
-Those point at `~/.config/matugen/...`, where Stow-managed sources sit next to
-the additional palettes generated by the shared DMS/Matugen run.
+`install.sh` is only a compatibility wrapper. New automation should invoke
+`dotfiles` directly. It refuses the old `--force`, `--adopt`, and unattended
+confirmation modes rather than silently changing their meaning.
 
-Generated palettes are **not** versioned. DMS owns the canonical shared names:
-GTK `dank-colors.css`, Ghostty `dankcolors`, Kitty `dank-theme.conf` and
-`dank-tabs.conf`, Zed `dank-zed-theme.json`, Neovim `dms.lua`, Zen `zen.css`,
-the VSCodium extension themes, the Discord client themes, and Niri's
-`dms/colors.kdl`. The same DMS generator runs from either desktop, so
-applications do not need session-specific theme paths. `install.sh` installs
-DMS's bundled VSCodium VSIX and selects the matching DankShell mode.
-VSCodium's `settings.json` stays machine-local because DMS updates its selected
-Dark/Light variant whenever the system color mode changes.
+## Managed layers
 
-The Matugen user templates run as part of that same generation and add the
-targets DMS does not ship: btop, Fastfetch, prompts, Spicetify, Steam, Helium,
-GNOME Shell, and the Matugen folder icon theme. In GNOME,
-`matugen-wallpaper.service` watches the GNOME wallpaper and invokes DMS. In
-Niri, DMS changes the wallpaper and invokes the post-processing hook itself.
+| Layer | Managed | Deliberately manual |
+| --- | --- | --- |
+| Packages | Curated official/AUR lists, pinned AUR commits, pinned `pyrs` source/toolchain | Extra installed packages are recorded in locks but never removed |
+| Home | Stow links plus six pinned Zsh Git sources, login shell, and repository hook | DMS session/preferences, browser/mail/chat profiles, credentials |
+| GNOME | Sanitized additive dconf, package-owned extensions, five-minute lock, committed wallpaper | Monitor layout, location, app usage/history, runtime palette values |
+| System | Stable pacman policy, timezone, locale/keyboard, mkinitcpio/GRUB input, zram, Reflector, coredumps, GRUB-Btrfs | fstab, kernel root/encryption arguments, Secure Boot keys, UFW rules |
+| Versions | Latest/dated locks, source revisions, Stow/system hashes, tool versions | Historical Arch binaries and the Codex current-release channel |
 
-## GNOME settings
+## GNU Stow packages
 
-GNOME is reproduced from a sanitized `dconf` snapshot in `gnome/dconf/`, not
-from the binary `~/.config/dconf/user` database. `./install.sh` loads it after
-stowing. See `gnome/README.md` for the restore steps, extension list, and how
-to refresh the export.
+All packages mirror their final paths below `$HOME`; `--no-folding` keeps parent
+directories real so applications can create adjacent state safely.
 
-Monitor layout is machine-local (`~/.config/monitors.xml`) and is not stowed.
+| Package | Main contents |
+| --- | --- |
+| `zsh-bootstrap` | `~/.zshenv` and `ZDOTDIR` bootstrap |
+| `terminal` | Zsh, Fish, Ghostty, Kitty helpers, btop, and Neovim |
+| `gnome-desktop` | MIME defaults, environment, user directories, OpenRGB autostart, user service, committed wallpaper |
+| `matugen` | DMS-compatible templates, wallpaper controller, theme/icon discovery files |
+| `zed` | Zed settings, keymap, and tasks |
+| `niri` | Portable Niri compositor configuration; generated DMS includes stay local |
+| `fontconfig` / `xresources` | Arabic font preference and cursor defaults |
+| `hardware` | OpenRGB detector/profile data for this host class |
 
-## Intentional exclusions
+Stow conflicts are rejected before package or system mutations. Do not use
+`stow --adopt`: it can copy unreviewed machine state into this public repo.
+For an intentional migration, back up the exact conflicting paths and use
+`scripts/replace-existing` explicitly.
 
-This is a public, credential-free configuration repository. It excludes browser
-profiles, Discord, mail clients, Codex state, the binary dconf user database,
-connection databases, credentials, history files, caches, logs, backups,
-generated menus, nested Git metadata, machine-session data, Zed SSH hosts, and
-wallpaper-derived palettes. The GNOME dump also strips wallpaper URIs, window
-sizes, file-chooser last paths, NetworkManager EAP entries, remote-desktop
-certificate paths, and location coordinates.
+## Locks and rolling-release limits
+
+`./dotfiles lock` writes `locks/workstation.json` plus a dated
+`locks/workstation-YYYY-MM-DD.json`. A lock records selected installed package
+versions, pinned AUR/Cargo sources, unmanaged explicit packages, tool versions,
+and content hashes. Audit compares the full package membership and versions,
+unmanaged explicit set, every source pin, tool versions, and both content-hash
+sets with the latest lock.
+
+The lock is evidence and drift detection, not a binary package archive. Arch
+mirrors may stop carrying an old official package version; rebuilding that exact
+binary would require a separate package archive. AUR packages are stronger:
+their PKGBUILD repositories are checked out at full commits before building.
+Because `explicit_unmanaged` fingerprints locally installed software, review or
+remove that observational field before publishing a lock from a private host.
+
+## State, secrets, and history
+
+See [`state/README.md`](state/README.md) for the handler matrix. Captures use
+temporary files and refuse to replace good manifests with empty output. GNOME
+capture has a safe fallback when it cannot contact a running Shell and supports
+the non-writing `./scripts/export-gnome --check` mode.
+
+The ignore policy blocks common credential stores, browser profiles, shell
+histories, private Codex state, nested repositories, databases, logs, and
+generated palettes. A full apply installs the pinned pre-commit hook; Gitleaks
+also runs in CI. Historical `.zsh_history` and
+`.zcompdump` paths still exist in old Git commits; the repository contains a
+mirror-only scrub helper, but no history rewrite or force-push is performed
+without a separate explicit decision. See [`maintenance/README.md`](maintenance/README.md).
+
+Codex uses OpenAI's current standalone user installer through
+`maintenance/install-codex`; it is intentionally not part of the base profile.
+On a new system run that helper explicitly, then start `codex` to authenticate.
+The installer channel and authentication remain manual.
+
+## Verification
+
+The latest verified results and known drift are recorded in
+[`docs/verification.md`](docs/verification.md). Locally, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
+./maintenance/check-reproducibility
+```
