@@ -1,98 +1,73 @@
 # Wallpaper color synchronization
 
 `matugen-wallpaper.service` watches GNOME's light and dark wallpaper keys and
-regenerates a Material palette after each change. It also follows GNOME's
-light/dark appearance mode. If the Hanabi live-wallpaper extension is enabled,
-the watcher extracts a representative video frame with FFmpeg.
+regenerates a Material palette after each change. It follows the GNOME
+light/dark preference and, when the optional Hanabi extension is active,
+extracts a representative video frame with FFmpeg.
 
-Integrated targets:
+The current integration covers:
 
-- GNOME Shell 50 and GNOME's nearest native accent color
-- GTK 3, GTK 4, libadwaita, and Qt applications using the GTK platform theme
-- Nautilus folder, XDG user-directory, home, desktop, and bookmark icons through
-  a small Matugen icon theme that inherits every other icon from Adwaita
-- Ghostty, including live config reload
-- Zed, with dedicated light and dark themes
-- btop, including live theme reload
-- Fastfetch, with a generated true-color logo and output palette
-- Helium Browser's native Chromium custom theme, applied safely before launch
-- Zen Browser's native UI through its supported profile-local `userChrome.css`
-  loader; the browser must reload its UI stylesheet (normally on restart) to
-  display a freshly generated palette
-- Steam through AdwSteamGtk custom CSS; Steam may need a natural restart
-- Spotify through a dedicated Spicetify `Matugen` theme, with wallpaper-derived
-  Spotify surfaces, accents, and a restrained three-color background aurora
+- GNOME's nearest native accent and the Stow-managed `Matugen` Shell/icon
+  themes;
+- GTK 3/4 and the DMS-generated application targets detected by `dms matugen`;
+- Nautilus folder, XDG directory, home, desktop, and bookmark icons while
+  inheriting all other icons from Adwaita;
+- Ghostty, Kitty, Zed, Neovim, btop, Fastfetch, Oh My Posh, and the Zsh palette;
+- Zen Browser's profile-local `userChrome.css` loader when a Zen profile exists.
 
-The generated outputs are written to `.new` files, validated, and renamed over
-their final paths atomically. Existing Ghostty, Zed, and btop configuration was
-backed up before their single theme-selection lines were changed.
+Helium, Steam/AdwSteamGtk, Spotify/Spicetify, credentials, and browser profile
+data are not managed. Old helpers and templates for those integrations were
+removed so a palette update cannot rewrite unrelated application state.
 
-## Layout
+## Ownership and generated files
 
-All Matugen-owned configuration, templates, generated GNOME theme/icon assets,
-launch helpers, and the Helium launcher source live below `~/.config/matugen`.
-`./install.sh` then creates relative symlinks under `~/.local/bin` and
-`~/.local/share` so GNOME can discover the generated theme, icons, and Helium
-launcher without Stow folding those directories into git. The Matugen
-executable itself remains on `~/.local/bin` and transient palette state remains
-under `~/.cache/matugen` by design.
+The controller, templates, and stable theme/icon discovery files are installed
+by GNU Stow from this package. Generated palettes stay outside Git under
+`~/.cache/matugen`, application config directories, and
+`~/.config/DankMaterialShell`. The stable executable and discovery links are:
 
-Useful commands:
+```text
+~/.local/bin/matugen-wallpaper
+~/.local/share/icons/Matugen/index.theme
+~/.local/share/themes/Matugen/index.theme
+```
+
+Generation uses temporary files, validates each recognized output, and then
+renames it over the destination. The committed GNOME wallpaper is restored
+before the first generation on a new system.
+
+## Commands
 
 ```sh
-matugen-wallpaper                    # apply the current GNOME wallpaper now
+matugen-wallpaper                    # apply the current GNOME wallpaper
 matugen-wallpaper /path/to/image     # one-shot palette from another image
-matugen-wallpaper --status           # show the last successful source/palette
+matugen-wallpaper --status           # show the last successful palette
 systemctl --user status matugen-wallpaper.service
 journalctl --user -u matugen-wallpaper.service -f
 ```
 
-The default scheme is `scheme-tonal-spot`. For an experimental one-shot palette:
+For an experimental one-shot scheme:
 
 ```sh
 MATUGEN_SCHEME=scheme-vibrant matugen-wallpaper /path/to/image
 ```
 
-For a persistent alternative, add `Environment=MATUGEN_SCHEME=scheme-vibrant`
-with `systemctl --user edit matugen-wallpaper.service`, then restart the service.
-
-To pause automatic updates without deleting anything:
+For a persistent alternative, add the same environment setting with
+`systemctl --user edit matugen-wallpaper.service`, then restart the service.
+To pause automatic updates:
 
 ```sh
 systemctl --user disable --now matugen-wallpaper.service
 ```
 
-Timestamped originals are under `~/.config/matugen/backups/`. A full rollback
-also restores the Adwaita icon theme, sets the User Themes name back to empty,
-and turns off AdwSteamGtk custom CSS:
+To return GNOME to its inherited icon and Shell themes:
 
 ```sh
 gsettings set org.gnome.desktop.interface icon-theme 'Adwaita'
 gsettings set org.gnome.shell.extensions.user-theme name ''
-gsettings set io.github.Foldex.AdwSteamGtk prefs-install-custom-css false
 ```
 
-GTK monitors the active icon theme for content changes, so open Nautilus windows
-should refresh when a wallpaper produces new SVGs. If one window keeps a stale
-folder icon, close and reopen Nautilus once; the watcher never quits it
-automatically because that would close active tabs and file-operation windows.
-
-Spicetify's `Matugen` theme is stored under
-`~/.config/spicetify/Themes/Matugen`; it is generated on every successful
-wallpaper update. Matugen always runs one non-launching `spicetify refresh`
-after both theme files commit, so Spotify will have the latest palette when it
-opens later. If Spotify is already open, the same update also performs one
-normal restart instead of one reload per theme file. The first `spicetify apply`
-also restarts Spotify; all later refreshes leave the packaged Spotify UI
-unmodified.
-
-Helium's browser chrome follows Matugen's source color through its native
-Chromium custom-theme setting. The watcher updates it while Helium is closed;
-the user-local Helium launcher also applies the latest palette just before a
-new browser start. An already-open Helium window is never rewritten or killed.
-
-Zen Browser uses a generated `matugen.css` in its active profile's `chrome`
-directory. Matugen preserves Zen Mods' generated `zen-themes.css`, adds one
-managed `@import` to `userChrome.css`, and enables Zen's supported custom
-stylesheet preference in `user.js`. The generated palette source remains under
-`~/.config/matugen/runtime/zen`; a wallpaper change updates it automatically.
+Zen receives `~/.config/DankMaterialShell/zen.css` as
+`chrome/dank-colors.css`; one managed import is added to `userChrome.css` and
+the supported custom-stylesheet preference is enabled in `user.js`. Zen must
+reload its UI stylesheet, normally by restarting, to display a new palette.

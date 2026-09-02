@@ -12,7 +12,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import shlex
 import shutil
 import signal
 import subprocess
@@ -41,10 +40,6 @@ DMS_SETTINGS = CONFIG_HOME / "DankMaterialShell" / "settings.json"
 WATCH_STATE = CACHE_HOME / "watch-state.json"
 LOCK_FILE = CACHE_HOME / "apply.lock"
 ICON_THEME_HOME = USER_HOME / ".local" / "share" / "icons" / "Matugen"
-HELIUM_CONFIG_HOME = CONFIG_HOME / "net.imput.helium"
-HELIUM_PREFERENCES = HELIUM_CONFIG_HOME / "Default" / "Preferences"
-HELIUM_SINGLETONS = tuple(HELIUM_CONFIG_HOME / name for name in ("SingletonLock", "SingletonCookie", "SingletonSocket"))
-HELIUM_BACKUP = CONFIG_HOME / "matugen" / "backups" / "20260814-helium" / "Preferences.before-matugen"
 ZEN_CONFIG_HOME = CONFIG_HOME / "zen"
 ZEN_PROFILES = ZEN_CONFIG_HOME / "profiles.ini"
 ZEN_RUNTIME_CSS = CONFIG_HOME / "DankMaterialShell" / "zen.css"
@@ -57,8 +52,6 @@ LEGACY_ZEN_IMPORT = re.compile(
 )
 ZEN_USER_PREF = 'user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);\n'
 NVIM_THEME = CONFIG_HOME / "nvim" / "colors" / "dms.lua"
-SPICETIFY_THEME_HOME = CONFIG_HOME / "spicetify" / "Themes" / "Matugen"
-SPICETIFY_CONFIG = CONFIG_HOME / "spicetify" / "config-xpui.ini"
 HANABI_SCHEMA = "io.github.jeffshee.hanabi-extension"
 HANABI_EXTENSION = "hanabi-extension@jeffshee.github.io"
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -101,9 +94,6 @@ CUSTOM_GENERATED_FILES = (
     (CONFIG_HOME / "fastfetch" / "config.jsonc", "fastfetch"),
     (NVIM_THEME, "nvim"),
     (USER_HOME / ".local" / "share" / "themes" / "Matugen" / "gnome-shell" / "gnome-shell.css", "css"),
-    (CONFIG_HOME / "AdwSteamGtk" / "custom.css", "css"),
-    (SPICETIFY_THEME_HOME / "color.ini", "spicetify-ini"),
-    (SPICETIFY_THEME_HOME / "user.css", "spicetify-css"),
     (CACHE_HOME / "palette.json", "palette"),
 ) + tuple((ICON_THEME_HOME / directory / name, "svg") for directory, name in ICON_OUTPUTS)
 
@@ -116,8 +106,6 @@ DMS_GENERATED_FILES = {
     "qt5ct": ((CONFIG_HOME / "qt5ct" / "colors" / "matugen.conf", "qt"),),
     "qt6ct": ((CONFIG_HOME / "qt6ct" / "colors" / "matugen.conf", "qt"),),
     "zenbrowser": ((ZEN_RUNTIME_CSS, "zen"),),
-    "vesktop": ((CONFIG_HOME / "vesktop" / "themes" / "dank-discord.css", "css"),),
-    "vencord": ((CONFIG_HOME / "Vencord" / "themes" / "dank-discord.css", "css"),),
     "ghostty": ((CONFIG_HOME / "ghostty" / "themes" / "dankcolors", "ghostty"),),
     "kitty": (
         (CONFIG_HOME / "kitty" / "dank-theme.conf", "kitty"),
@@ -320,85 +308,6 @@ def write_text_atomic(path: Path, value: str) -> None:
     path.chmod(mode)
 
 
-def helium_is_running() -> bool:
-    # Chromium creates these profile-local singleton entries before it writes
-    # Preferences. Do not race it or rewrite its large profile JSON while live.
-    return any(path.exists() or path.is_symlink() for path in HELIUM_SINGLETONS)
-
-
-def signed_argb(hex_color: str) -> int:
-    if HEX_COLOR.fullmatch(hex_color) is None:
-        raise ValueError(f"Invalid Helium theme color: {hex_color!r}")
-    value = 0xFF000000 | int(hex_color[1:], 16)
-    return value - 0x100000000 if value >= 0x80000000 else value
-
-
-def apply_helium_theme(palette: dict[str, Any]) -> bool:
-    """Update Helium's native Chromium custom-theme seed while it is closed."""
-    source = palette.get("source")
-    if not isinstance(source, str):
-        LOG.warning("Helium theme was not updated: Matugen has no source color")
-        return False
-    if not HELIUM_PREFERENCES.is_file():
-        LOG.debug("Helium profile is absent; skipping native browser theme")
-        return False
-    if helium_is_running():
-        LOG.debug("Helium is running; defer its native theme until the profile closes")
-        return False
-
-    try:
-        preferences = load_json(HELIUM_PREFERENCES)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
-        LOG.warning("Could not read Helium preferences: %s", error)
-        return False
-
-    browser = preferences.setdefault("browser", {})
-    if not isinstance(browser, dict):
-        LOG.warning("Helium theme was not updated: browser preferences are malformed")
-        return False
-    theme = browser.setdefault("theme", {})
-    if not isinstance(theme, dict):
-        LOG.warning("Helium theme was not updated: browser theme preferences are malformed")
-        return False
-    extensions = preferences.setdefault("extensions", {})
-    if not isinstance(extensions, dict):
-        LOG.warning("Helium theme was not updated: extension preferences are malformed")
-        return False
-    extension_theme = extensions.setdefault("theme", {})
-    if not isinstance(extension_theme, dict):
-        LOG.warning("Helium theme was not updated: extension theme preferences are malformed")
-        return False
-
-    # Helium stores the Customize Chrome selection in these Chromium-native
-    # preferences. Explicitly select the custom-color variant as the user may
-    # have previously picked Helium's grayscale mode, which removes user_color2.
-    seed = signed_argb(source)
-    desired_theme = {
-        "color_scheme2": theme.get("color_scheme2", 0),
-        "color_variant2": 1,
-        "is_grayscale2": False,
-        "user_color2": seed,
-    }
-    changed = any(theme.get(key) != value for key, value in desired_theme.items())
-    changed = changed or extension_theme.get("id") != "user_color_theme_id"
-    if not changed:
-        return False
-
-    try:
-        if not HELIUM_BACKUP.exists():
-            HELIUM_BACKUP.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            shutil.copy2(HELIUM_PREFERENCES, HELIUM_BACKUP)
-            HELIUM_BACKUP.chmod(0o600)
-        theme.update(desired_theme)
-        extension_theme["id"] = "user_color_theme_id"
-        write_text_atomic(HELIUM_PREFERENCES, json.dumps(preferences, ensure_ascii=False, separators=(",", ":")))
-    except OSError as error:
-        LOG.warning("Could not update Helium's native theme: %s", error)
-        return False
-    LOG.info("Updated Helium's native custom-theme seed to %s", source)
-    return True
-
-
 def zen_profiles() -> tuple[Path, ...]:
     """Return Zen's selected profile directories without touching browser state."""
     if not ZEN_PROFILES.is_file():
@@ -518,11 +427,8 @@ class WallpaperPalette:
         self.shell = settings_if_available("org.gnome.shell")
         self.user_theme = settings_if_available("org.gnome.shell.extensions.user-theme")
         self.hanabi = settings_if_available(HANABI_SCHEMA)
-        self.adw_steam = settings_if_available("io.github.Foldex.AdwSteamGtk")
         self.reload_apps = reload_apps
         self._debounce_id = 0
-        self._helium_debounce_id = 0
-        self._helium_monitor: Gio.FileMonitor | None = None
         self._loop: GLib.MainLoop | None = None
 
     def mode(self) -> str:
@@ -779,8 +685,6 @@ class WallpaperPalette:
             "niri": 40,
             "qt": 80,
             "json": 20,
-            "spicetify-ini": 500,
-            "spicetify-css": 2_000,
             "palette": 100,
             "svg": 500,
         }
@@ -846,46 +750,6 @@ class WallpaperPalette:
                     raise RuntimeError(f"Generated VSCodium theme is invalid JSONC: {path}: {error}") from error
                 if not isinstance(vscode_theme, dict) or not isinstance(vscode_theme.get("colors"), dict) or not isinstance(vscode_theme.get("tokenColors"), list):
                     raise RuntimeError(f"Generated VSCodium theme is incomplete: {path}")
-            if kind == "spicetify-ini":
-                parser = configparser.ConfigParser(interpolation=None)
-                try:
-                    parser.read_string(text)
-                except configparser.Error as error:
-                    raise RuntimeError(f"Generated Spicetify color scheme is invalid: {temporary}: {error}") from error
-                if "Matugen" not in parser:
-                    raise RuntimeError("Generated Spicetify color scheme has no Matugen section")
-                required_spice_colors = {
-                    "text",
-                    "subtext",
-                    "main",
-                    "main-elevated",
-                    "highlight",
-                    "highlight-elevated",
-                    "sidebar",
-                    "player",
-                    "card",
-                    "shadow",
-                    "selected-row",
-                    "button",
-                    "button-active",
-                    "button-disabled",
-                    "tab-active",
-                    "notification",
-                    "notification-error",
-                    "misc",
-                }
-                scheme = parser["Matugen"]
-                if not required_spice_colors.issubset(scheme):
-                    raise RuntimeError("Generated Spicetify color scheme is missing required colors")
-                for name in required_spice_colors:
-                    components = [component.strip() for component in scheme[name].split(",")]
-                    if len(components) != 3 or any(not component.isdigit() or not 0 <= int(component) <= 255 for component in components):
-                        raise RuntimeError(f"Generated Spicetify color {name!r} is not an RGB triple")
-            if kind == "spicetify-css":
-                if text.count("{") != text.count("}"):
-                    raise RuntimeError(f"Unbalanced Spicetify CSS braces in {temporary}")
-                if "--matugen-primary:" not in text or "var(--spice-main)" not in text:
-                    raise RuntimeError("Generated Spicetify stylesheet is incomplete")
             if kind == "svg":
                 try:
                     root = ET.fromstring(text)
@@ -991,115 +855,9 @@ class WallpaperPalette:
                 check=False,
             )
 
-    def install_steam_css(self) -> None:
-        if os.environ.get("MATUGEN_SKIP_STEAM") == "1":
-            return
-        if self.adw_steam is None or not self.adw_steam.get_boolean("prefs-install-custom-css"):
-            return
-        installer = shutil.which("adwaita-steam-gtk")
-        if installer is None:
-            return
-        extracted = USER_HOME / ".cache" / "AdwSteamInstaller" / "extracted"
-        local_installer = extracted / "install.py"
-        command = [installer, "--install"]
-        working_directory: Path | None = None
-
-        # After the first AdwSteamGtk install, avoid its network update check on
-        # every wallpaper change and rerun the already-cached skin installer.
-        if local_installer.is_file():
-            custom_destination = extracted / "custom" / "custom.css"
-            custom_destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(CONFIG_HOME / "AdwSteamGtk" / "custom.css", custom_destination)
-            try:
-                package_root = Path("/usr/share/adwaita-steam-gtk")
-                if str(package_root) not in sys.path:
-                    sys.path.insert(1, str(package_root))
-                from adwaita_steam_gtk import cli as adw_cli
-                from adwaita_steam_gtk import install as adw_install
-
-                command = shlex.split(adw_install.gen_cmd_line(adw_cli.get_options(None), False))
-            except Exception:
-                LOG.exception("Could not load AdwSteamGtk options; using its default local install")
-                command = [sys.executable, "install.py", "--custom-css"]
-            working_directory = extracted
-        try:
-            result = subprocess.run(
-                command,
-                cwd=working_directory,
-                capture_output=True,
-                text=True,
-                timeout=45,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            LOG.warning("AdwSteamGtk install timed out; Steam will use the palette after its next successful skin install")
-            return
-        if result.returncode != 0:
-            LOG.warning("AdwSteamGtk could not refresh Steam CSS: %s", (result.stderr or result.stdout).strip())
-
-    def refresh_spicetify_theme(self) -> None:
-        """Refresh the active Matugen Spicetify theme once after both files commit."""
-        if os.environ.get("MATUGEN_SKIP_SPOTIFY") == "1" or not SPICETIFY_CONFIG.is_file():
-            return
-
-        config = configparser.ConfigParser(interpolation=None)
-        try:
-            config.read(SPICETIFY_CONFIG, encoding="utf-8")
-        except (OSError, configparser.Error) as error:
-            LOG.warning("Could not read Spicetify configuration: %s", error)
-            return
-        settings = config["Setting"] if "Setting" in config else None
-        if settings is None or settings.get("current_theme", "") != "Matugen" or settings.get("color_scheme", "") != "Matugen":
-            return
-
-        # A closed Spotify still needs its installed CSS refreshed for its next
-        # normal launch. An open one is restarted once after the refresh.
-        user_id = str(os.geteuid())
-        running = subprocess.run(
-            ["pgrep", "-u", user_id, "-x", "spotify"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        executable = next(
-            (
-                candidate
-                for candidate in (
-                    shutil.which("spicetify"),
-                    "/usr/sbin/spicetify",
-                    "/usr/bin/spicetify",
-                )
-                if candidate and Path(candidate).is_file()
-            ),
-            None,
-        )
-        if executable is None:
-            LOG.warning("Spicetify is configured for Matugen but its executable was not found")
-            return
-        command = [executable, "refresh"]
-        if running.returncode == 0:
-            command.append("restart")
-        else:
-            command.append("--no-restart")
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=45,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            LOG.warning("Spicetify theme refresh timed out")
-            return
-        if result.returncode != 0:
-            LOG.warning("Spicetify could not refresh Spotify: %s", (result.stderr or result.stdout).strip())
-
     def reload_everything(self) -> None:
         self.reload_gtk()
         self.signal_reloadable_apps()
-        self.install_steam_css()
-        self.refresh_spicetify_theme()
 
     def postprocess(self) -> dict[str, Any]:
         """Validate DMS outputs and synchronize apps that need extra setup."""
@@ -1109,7 +867,6 @@ class WallpaperPalette:
             palette = self.validate_generated()
             cleanup_legacy_theme_outputs()
             accent = self.apply_gnome_colors(palette)
-            apply_helium_theme(palette)
             apply_zen_theme()
             if self.reload_apps:
                 self.reload_everything()
@@ -1136,7 +893,6 @@ class WallpaperPalette:
             palette = self.validate_generated()
             cleanup_legacy_theme_outputs()
             accent = self.apply_gnome_colors(palette)
-            apply_helium_theme(palette)
             apply_zen_theme()
             write_json_atomic(
                 WATCH_STATE,
@@ -1168,21 +924,6 @@ class WallpaperPalette:
             LOG.exception("Wallpaper palette update failed")
         return GLib.SOURCE_REMOVE
 
-    def schedule_helium_sync(self, *_args: Any) -> None:
-        """Apply a deferred browser theme just after Helium releases its profile."""
-        if self._helium_debounce_id:
-            GLib.source_remove(self._helium_debounce_id)
-        self._helium_debounce_id = GLib.timeout_add(700, self.sync_helium_debounced)
-
-    def sync_helium_debounced(self) -> bool:
-        self._helium_debounce_id = 0
-        try:
-            palette = load_json(CACHE_HOME / "palette.json")
-            apply_helium_theme(palette)
-        except (OSError, ValueError, json.JSONDecodeError):
-            LOG.exception("Deferred Helium theme synchronization failed")
-        return GLib.SOURCE_REMOVE
-
     def stop(self) -> bool:
         if self._loop is not None:
             self._loop.quit()
@@ -1196,15 +937,6 @@ class WallpaperPalette:
             self.shell.connect("changed::enabled-extensions", self.schedule)
         if self.hanabi is not None:
             self.hanabi.connect("changed::video-path", self.schedule)
-
-        try:
-            self._helium_monitor = Gio.File.new_for_path(str(HELIUM_CONFIG_HOME)).monitor_directory(
-                Gio.FileMonitorFlags.NONE,
-                None,
-            )
-            self._helium_monitor.connect("changed", self.schedule_helium_sync)
-        except GLib.Error as error:
-            LOG.warning("Could not monitor Helium's profile for deferred theming: %s", error)
 
         self.apply(force=True)
 
@@ -1226,11 +958,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--no-reload", action="store_true", help="generate files without asking running apps to reload")
     parser.add_argument("--status", action="store_true", help="print the last successful wallpaper palette state")
-    parser.add_argument(
-        "--sync-helium",
-        action="store_true",
-        help="apply the cached Matugen source color to Helium before launching it",
-    )
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
     return parser.parse_args()
 
@@ -1246,14 +973,6 @@ def main() -> int:
             print("No Matugen wallpaper palette has been applied yet.", file=sys.stderr)
             return 1
         print(WATCH_STATE.read_text(encoding="utf-8"), end="")
-        return 0
-    if args.sync_helium:
-        palette_path = CACHE_HOME / "palette.json"
-        try:
-            apply_helium_theme(load_json(palette_path))
-        except (OSError, ValueError, json.JSONDecodeError) as error:
-            LOG.error("Could not synchronize Helium's native theme: %s", error)
-            return 1
         return 0
     if args.postprocess_only:
         if args.image is not None or args.watch:

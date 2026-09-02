@@ -50,21 +50,6 @@ input_path = '~/.config/matugen/templates/gnome-shell.css'
 output_path = '~/.local/share/themes/Matugen/gnome-shell/gnome-shell.css'
 index = 60
 
-[templates.adw-steam-gtk]
-input_path = '~/.config/matugen/templates/adw-steam-gtk.css'
-output_path = '~/.config/AdwSteamGtk/custom.css'
-index = 70
-
-[templates.spicetify-colors]
-input_path = '~/.config/matugen/templates/spicetify-color.ini'
-output_path = '~/.config/spicetify/Themes/Matugen/color.ini'
-index = 75
-
-[templates.spicetify-css]
-input_path = '~/.config/matugen/templates/spicetify-user.css'
-output_path = '~/.config/spicetify/Themes/Matugen/user.css'
-index = 76
-
 [templates.icon-folder]
 input_path = '~/.config/matugen/templates/icons/places/folder.svg'
 output_path = '~/.local/share/icons/Matugen/scalable/places/folder.svg'
