@@ -1,32 +1,57 @@
 export ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 
-# download zinit if not available
-if [ ! -d "$ZINIT_HOME" ]; then
-  mkdir -p "$(dirname $ZINIT_HOME)"
-  git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+# The controller installs Zinit, Oh My Zsh, and plugins at full Git commits.
+# Never clone HEAD during shell startup: run `~/.dotfiles/dotfiles apply` when
+# one of these pinned sources is missing.
+if [[ -r "${ZINIT_HOME}/zinit.zsh" ]]; then
+  source "${ZINIT_HOME}/zinit.zsh"
+  zinit_root="${ZINIT_HOME:h}"
+  omz_root="${zinit_root}/ohmyzsh.git"
+
+  # zsh-completions must extend fpath before compinit; Oh My Zsh's Git plugin
+  # then expects compdef to exist while it is sourced.
+  completions_plugin="${zinit_root}/plugins/zsh-users---zsh-completions"
+  if [[ -d "$completions_plugin" ]]; then
+    zinit light zsh-users/zsh-completions
+  else
+    print -u2 'zsh: pinned plugin missing: zsh-users/zsh-completions'
+  fi
+  autoload -Uz compinit
+  compinit -d "${ZDOTDIR:-$HOME}/.zcompdump"
+
+  for omz_file in \
+    lib/git.zsh \
+    plugins/git/git.plugin.zsh \
+    plugins/sudo/sudo.plugin.zsh \
+    plugins/archlinux/archlinux.plugin.zsh \
+    plugins/command-not-found/command-not-found.plugin.zsh
+  do
+    if [[ -r "${omz_root}/${omz_file}" ]]; then
+      source "${omz_root}/${omz_file}"
+    else
+      print -u2 "zsh: pinned Oh My Zsh source missing: ${omz_file}"
+    fi
+  done
+
+  # Each plugin directory is pre-populated at its profile revision. The guard
+  # prevents Zinit from silently fetching an unpinned HEAD.
+  for plugin in \
+    zsh-users/zsh-autosuggestions \
+    Aloxaf/fzf-tab
+  do
+    plugin_dir="${zinit_root}/plugins/${plugin//\//---}"
+    if [[ -d "$plugin_dir" ]]; then
+      zinit light "$plugin"
+    else
+      print -u2 "zsh: pinned plugin missing: ${plugin}"
+    fi
+  done
+  zinit cdreplay -q
+else
+  print -u2 'zsh: pinned Zinit runtime is missing; run ~/.dotfiles/dotfiles apply'
+  autoload -Uz compinit
+  compinit -d "${ZDOTDIR:-$HOME}/.zcompdump"
 fi
-
-source "${ZINIT_HOME}/zinit.zsh"
-
-# OMZ snippets — defer (not needed for first keystroke)
-zinit wait lucid for \
-  OMZL::git.zsh \
-  OMZP::git \
-  OMZP::sudo \
-  OMZP::archlinux \
-  OMZP::command-not-found
-
-# Core plugins — load order matters for ZLE wrappers
-zinit light zsh-users/zsh-completions
-zinit light zsh-users/zsh-autosuggestions
-zinit light Aloxaf/fzf-tab
-# syntax highlighting MUST be last among ZLE-wrapping plugins
-zinit light zsh-users/zsh-syntax-highlighting
-
-# Completions
-autoload -Uz compinit
-compinit -d "${ZDOTDIR:-$HOME}/.zcompdump"
-zinit cdreplay -q
 
 # completion styling
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
@@ -111,3 +136,15 @@ ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
 if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv hook zsh)"
 fi
+
+# Syntax highlighting must load after every plugin and ZLE widget definition.
+if (( ${+functions[zinit]} )); then
+  syntax_plugin="${ZINIT_HOME:h}/plugins/zsh-users---zsh-syntax-highlighting"
+  if [[ -d "$syntax_plugin" ]]; then
+    zinit light zsh-users/zsh-syntax-highlighting
+  else
+    print -u2 'zsh: pinned plugin missing: zsh-users/zsh-syntax-highlighting'
+  fi
+fi
+
+fastfetch
