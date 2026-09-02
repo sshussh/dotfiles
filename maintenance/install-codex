@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Official user-scoped Codex CLI install. Authentication remains manual.
+set -euo pipefail
+command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
+installer=$(mktemp)
+trap 'rm -f "$installer"' EXIT
+curl -fsSL https://chatgpt.com/codex/install.sh -o "$installer"
+CODEX_NON_INTERACTIVE=1 sh "$installer"
+echo 'Codex installed for this user; run `codex login` interactively.'
