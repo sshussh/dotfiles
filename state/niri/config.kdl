@@ -1,0 +1,10 @@
+// This entrypoint must remain a regular file because DMS may rewrite it.
+// Portable policy stays in the Stow-managed file included below.
+include "portable.kdl"
+
+// DMS-generated, machine-local fragments. Missing files are valid on a new
+// system before DMS has generated them.
+include optional=true "dms/windowrules.kdl"
+include optional=true "dms/cursor.kdl"
+include optional=true "dms/layout.kdl"
+include optional=true "dms/outputs.kdl"

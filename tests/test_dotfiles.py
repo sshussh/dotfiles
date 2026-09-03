@@ -39,6 +39,19 @@ def run_cli(*arguments: str, target: str | None = None) -> subprocess.CompletedP
     )
 
 
+def run_handler(name: str, action: str, home: str) -> subprocess.CompletedProcess[str]:
+    environment = os.environ.copy()
+    environment["HOME"] = home
+    environment.pop("XDG_CONFIG_HOME", None)
+    return subprocess.run(
+        [str(ROOT / "state" / name / action)],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+
+
 class DotfilesIntegrationTest(unittest.TestCase):
     def setUp(self) -> None:
         if shutil.which("stow") is None:
@@ -69,10 +82,15 @@ class DotfilesIntegrationTest(unittest.TestCase):
             self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
             self.assertTrue((Path(target) / ".zshenv").is_symlink())
             self.assertFalse((Path(target) / ".config/mimeapps.list").exists())
+            self.assertFalse((Path(target) / ".config/pavucontrol.ini").exists())
+            self.assertFalse((Path(target) / ".config/user-dirs.dirs").exists())
+            self.assertFalse((Path(target) / ".config/user-dirs.locale").exists())
+            self.assertFalse((Path(target) / ".config/niri/config.kdl").exists())
+            self.assertTrue((Path(target) / ".config/niri/portable.kdl").is_symlink())
+            self.assertFalse((Path(target) / ".config/OpenRGB").exists())
             self.assertIn("--simulate", preview.stdout)
 
     def test_mimeapps_apply_replaces_the_legacy_stow_link(self) -> None:
-        handler = ROOT / "state/mimeapps/apply"
         snapshot = ROOT / "state/mimeapps/mimeapps.list"
         legacy_snapshot = ROOT / "gnome-desktop/.config/mimeapps.list"
         with tempfile.TemporaryDirectory() as home:
@@ -80,20 +98,81 @@ class DotfilesIntegrationTest(unittest.TestCase):
             config.mkdir()
             destination = config / "mimeapps.list"
             destination.symlink_to(legacy_snapshot)
-            environment = os.environ.copy()
-            environment["HOME"] = home
-            environment.pop("XDG_CONFIG_HOME", None)
-            result = subprocess.run(
-                [str(handler)],
-                cwd=ROOT,
-                env=environment,
-                capture_output=True,
-                text=True,
-            )
+            result = run_handler("mimeapps", "apply", home)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue(destination.is_file())
             self.assertFalse(destination.is_symlink())
             self.assertEqual(destination.read_bytes(), snapshot.read_bytes())
+
+    def test_mutable_desktop_state_replaces_legacy_stow_links(self) -> None:
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / ".config"
+            config.mkdir()
+            legacy = ROOT / "gnome-desktop/.config"
+            for name in ("pavucontrol.ini", "user-dirs.dirs", "user-dirs.locale"):
+                (config / name).symlink_to(legacy / name)
+
+            for handler in ("pavucontrol", "user-dirs"):
+                result = run_handler(handler, "apply", home)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                audit = run_handler(handler, "audit", home)
+                self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+
+            for name, handler in (
+                ("pavucontrol.ini", "pavucontrol"),
+                ("user-dirs.dirs", "user-dirs"),
+                ("user-dirs.locale", "user-dirs"),
+            ):
+                destination = config / name
+                self.assertTrue(destination.is_file())
+                self.assertFalse(destination.is_symlink())
+                expected = ROOT / "state" / handler / name
+                self.assertEqual(destination.read_bytes(), expected.read_bytes())
+            self.assertTrue((Path(home) / "Desktop").is_dir())
+
+    def test_niri_state_uses_a_regular_entrypoint_and_stowed_portable_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as home:
+            apply = run_cli(
+                "apply",
+                "--profile",
+                "workstation",
+                "--skip-packages",
+                "--skip-system",
+                "--skip-state",
+                target=home,
+            )
+            self.assertEqual(apply.returncode, 0, apply.stdout + apply.stderr)
+            config = Path(home) / ".config/niri/config.kdl"
+            config.symlink_to(ROOT / "niri/.config/niri/config.kdl")
+            result = run_handler("niri", "apply", home)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            audit = run_handler("niri", "audit", home)
+            self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+            self.assertTrue(config.is_file())
+            self.assertFalse(config.is_symlink())
+            self.assertEqual(config.read_bytes(), (ROOT / "state/niri/config.kdl").read_bytes())
+
+    def test_openrgb_state_replaces_legacy_stow_links(self) -> None:
+        with tempfile.TemporaryDirectory() as home:
+            destination_dir = Path(home) / ".config/OpenRGB"
+            destination_dir.mkdir(parents=True)
+            snapshots = ROOT / "state/openrgb/files"
+            legacy = ROOT / "hardware/.config/OpenRGB"
+            for snapshot in snapshots.iterdir():
+                (destination_dir / snapshot.name).symlink_to(legacy / snapshot.name)
+            result = run_handler("openrgb", "apply", home)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            audit = run_handler("openrgb", "audit", home)
+            self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+            for snapshot in snapshots.iterdir():
+                destination = destination_dir / snapshot.name
+                self.assertTrue(destination.is_file())
+                self.assertFalse(destination.is_symlink())
+                self.assertEqual(destination.read_bytes(), snapshot.read_bytes())
+
+    def test_btop_does_not_rewrite_its_stowed_configuration(self) -> None:
+        config = (ROOT / "terminal/.config/btop/btop.conf").read_text()
+        self.assertIn("save_config_on_exit = false", config)
 
     def test_preflight_rejects_a_regular_file_conflict(self) -> None:
         with tempfile.TemporaryDirectory() as target:
@@ -120,6 +199,7 @@ class DotfilesIntegrationTest(unittest.TestCase):
         self.assertEqual(data["schema_version"], 1)
         self.assertEqual(data["profile"], "workstation")
         self.assertEqual(len(data["stow_tree_sha256"]), 64)
+        self.assertEqual(len(data["state_tree_sha256"]), 64)
 
     def test_lock_audit_checks_content_hashes(self) -> None:
         current = {
@@ -133,6 +213,7 @@ class DotfilesIntegrationTest(unittest.TestCase):
             "git_sources": [],
             "tools": {},
             "stow_tree_sha256": "new",
+            "state_tree_sha256": "state",
             "system_template_sha256": {},
         }
         locked = {**current, "stow_tree_sha256": "old"}

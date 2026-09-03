@@ -4,7 +4,10 @@ stow_packages = [
   "zsh-bootstrap", "terminal", "gnome-desktop", "matugen", "zed",
   "niri", "fontconfig", "xresources"
 ]
-state_handlers = ["login-shell", "pre-commit", "mimeapps", "gnome", "dms", "niri", "vscodium", "zed"]
+state_handlers = [
+  "login-shell", "pre-commit", "mimeapps", "pavucontrol", "user-dirs",
+  "gnome", "dms", "niri", "vscodium", "zed"
+]
 
 [manifests]
 pacman = [

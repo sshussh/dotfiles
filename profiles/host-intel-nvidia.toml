@@ -1,6 +1,5 @@
 schema_version = 1
 variables = { HOST_PROFILE = "intel-nvidia" }
-stow_packages = ["hardware"]
 state_handlers = ["openrgb"]
 
 [manifests]

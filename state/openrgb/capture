@@ -1,3 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-echo "OpenRGB capture is manual; tracked detector/profile data may expose hardware identifiers"
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo=$(CDPATH= cd -- "$here/../.." && pwd)
+. "$repo/state/lib/mutable-files.sh"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}/OpenRGB"
+for snapshot in "$here"/files/*; do
+  mutable_capture "$config_home/${snapshot##*/}" "$snapshot"
+done
+echo "captured OpenRGB data; review hardware identifiers before publishing"

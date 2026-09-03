@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo=$(CDPATH= cd -- "$here/../.." && pwd)
+. "$repo/state/lib/mutable-files.sh"
+mutable_capture "${XDG_CONFIG_HOME:-$HOME/.config}/pavucontrol.ini" "$here/pavucontrol.ini"
+echo "captured pavucontrol runtime state"

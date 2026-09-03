@@ -359,6 +359,7 @@ def audit_lock(
         ("git_sources", "Git source pins"),
         ("tools", "tool versions"),
         ("stow_tree_sha256", "Stow tree hash"),
+        ("state_tree_sha256", "state tree hash"),
         ("system_template_sha256", "system template hashes"),
     )
     for field, label in comparisons:
@@ -928,6 +929,19 @@ def stow_tree_digest(config: dict[str, Any]) -> str:
     return digest.hexdigest()
 
 
+def state_tree_digest() -> str:
+    digest = hashlib.sha256()
+    state_root = ROOT / "state"
+    for source in sorted(state_root.rglob("*")):
+        if not source.is_file() or "__pycache__" in source.parts or source.suffix == ".pyc":
+            continue
+        digest.update(str(source.relative_to(ROOT)).encode())
+        digest.update(b"\0")
+        digest.update(source.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def lock_data(profile_name: str, config: dict[str, Any]) -> dict[str, Any]:
     installed = installed_packages()
     desired = unique(
@@ -959,6 +973,7 @@ def lock_data(profile_name: str, config: dict[str, Any]) -> dict[str, Any]:
             if (version := first_version_line(name)) is not None
         },
         "stow_tree_sha256": stow_tree_digest(config),
+        "state_tree_sha256": state_tree_digest(),
         "system_template_sha256": rendered_hashes,
     }
 

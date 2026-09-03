@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-config="$HOME/.config/niri/config.kdl"
-[[ -L "$config" && "$(readlink -f "$config")" == "$repo/niri/.config/niri/config.kdl" ]] || {
-  echo "Niri config is not linked to the repository" >&2
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo=$(CDPATH= cd -- "$here/../.." && pwd)
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_home/niri/config.kdl"
+portable="$config_home/niri/portable.kdl"
+[[ -f "$config" && ! -L "$config" ]] || {
+  echo "Niri entrypoint is missing or still symlinked" >&2
   exit 1
 }
-echo "Niri config is managed by Stow"
+cmp -s -- "$here/config.kdl" "$config" || {
+  echo "Niri entrypoint differs from the portable DMS-aware snapshot" >&2
+  exit 1
+}
+[[ -L "$portable" && "$(readlink -f "$portable")" == "$repo/niri/.config/niri/portable.kdl" ]] || {
+  echo "Niri portable config is not managed by Stow" >&2
+  exit 1
+}
+if command -v niri >/dev/null 2>&1; then
+  NIRI_CONFIG="$config" niri validate >/dev/null
+fi
+echo "Niri uses a regular runtime entrypoint and Stow-managed portable policy"

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
-profile="$HOME/.config/OpenRGB/primary.orp"
-[[ -L "$profile" && "$(readlink -f "$profile")" == "$repo/hardware/.config/OpenRGB/primary.orp" ]] || {
-  echo "OpenRGB primary profile is not managed by Stow" >&2
-  exit 1
-}
-echo "OpenRGB primary profile is managed by Stow"
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo=$(CDPATH= cd -- "$here/../.." && pwd)
+. "$repo/state/lib/mutable-files.sh"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}/OpenRGB"
+for snapshot in "$here"/files/*; do
+  mutable_audit "$snapshot" "$config_home/${snapshot##*/}"
+done
+echo "OpenRGB runtime data matches the reviewed snapshots"

@@ -1,3 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-echo "OpenRGB files are direct mutable Stow links; no separate import is performed"
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+repo=$(CDPATH= cd -- "$here/../.." && pwd)
+. "$repo/state/lib/mutable-files.sh"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}/OpenRGB"
+for snapshot in "$here"/files/*; do
+  name=${snapshot##*/}
+  mutable_install "$snapshot" "$config_home/$name" \
+    "$repo/hardware/.config/OpenRGB/$name"
+done
+echo "installed OpenRGB data as mutable runtime state"
