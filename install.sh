@@ -49,7 +49,51 @@ if ((${#packages[@]} == 0)); then
   exit 1
 fi
 
+backup_root=
+clear_regular_conflicts() {
+  local package=$1 source dest rel
+  while IFS= read -r -d '' source; do
+    rel=${source#"$repo/$package/"}
+    dest=$target/$rel
+    [[ -e "$dest" || -L "$dest" ]] || continue
+    [[ -L "$dest" || -d "$dest" ]] && continue
+    [[ -f "$dest" ]] || {
+      echo "install.sh: refusing to replace $dest" >&2
+      return 1
+    }
+    if cmp -s -- "$source" "$dest"; then
+      echo "replace identical $dest"
+    else
+      if [[ -z "$backup_root" ]]; then
+        backup_root=$target/.cache/dotfiles-backup/$(date +%Y%m%d-%H%M%S)
+      fi
+      if ((${#simulate[@]})); then
+        echo "would backup $dest -> $backup_root/$rel"
+      else
+        mkdir -p -- "$backup_root/$(dirname -- "$rel")"
+        cp -a -- "$dest" "$backup_root/$rel"
+        echo "backed up $dest -> $backup_root/$rel"
+      fi
+    fi
+    if ((${#simulate[@]})); then
+      echo "would remove $dest"
+    else
+      rm -f -- "$dest"
+    fi
+  done < <(find "$repo/$package" -type f \
+    ! -name .stow-local-ignore \
+    ! -name .gitignore \
+    ! -name .gitattributes \
+    ! -path '*/__pycache__/*' \
+    ! -name '*.pyc' \
+    -print0)
+}
+
 cd -- "$repo"
 mkdir -p -- "$target"
+for package in "${packages[@]}"; do
+  clear_regular_conflicts "$package"
+done
 stow --dir="$repo" --target="$target" --no-folding --restow "${simulate[@]}" "${packages[@]}"
 echo "stowed: ${packages[*]}"
+[[ -n "$backup_root" ]] && echo "previous files: $backup_root"
