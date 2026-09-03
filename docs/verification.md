@@ -1,4 +1,4 @@
-# Verification report — 2026-09-02
+# Verification report — 2026-09-03
 
 The repository was checked against the live Arch workstation and an isolated
 temporary home. The reproducibility controller is internally consistent and
@@ -6,9 +6,10 @@ reports all known unapplied host drift without hiding failures.
 
 ## Passed checks
 
-- Seven unit/integration tests: two real idempotent Stow deployments, Stow's
-  real simulator, regular-file conflict preservation, lock JSON, active lock
-  hash comparison, Git-remote normalization, and non-mutating GNOME help.
+- Eight unit/integration tests: two real idempotent Stow deployments, Stow's
+  real simulator, regular-file conflict preservation, mutable MIME-state
+  migration, lock JSON, active lock hash comparison, Git-remote normalization,
+  and non-mutating GNOME help.
 - Python compilation; Bash and Zsh syntax; all five TOML and two YAML files;
   `pacman-conf`; `niri validate`; and `git diff --check`.
 - All 118 official package names resolve in the configured Arch repositories.
@@ -21,6 +22,9 @@ reports all known unapplied host drift without hiding failures.
 - All nine Stow packages resolve to repository-owned links in the live home.
   Niri, Kitty helpers, fontconfig, Xresources, wallpaper, OpenRGB, and Matugen
   discovery files validate at their final paths.
+- `~/.config/mimeapps.list` is a regular file matching its explicit state
+  snapshot. The migration test proves the state handler replaces the former
+  relative Stow link, avoiding atomic default-application write failures.
 - The GNOME capture/apply/capture round trip is clean. The snapshot excludes
   location, certificates, app-folder IDs, stale extension inventory/settings,
   unavailable launchers, hardware sensor IDs, GameMode, and runtime palette

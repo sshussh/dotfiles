@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+source_file="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
+destination="$repo/state/mimeapps/mimeapps.list"
+
+[[ -f "$source_file" && ! -L "$source_file" ]] || {
+  echo "mimeapps runtime state is missing or still symlinked; run apply first" >&2
+  exit 1
+}
+temporary=$(mktemp "$destination.tmp.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+install -m 0644 -- "$source_file" "$temporary"
+mv -f -- "$temporary" "$destination"
+trap - EXIT
+echo "captured mimeapps runtime state"

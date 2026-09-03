@@ -8,6 +8,7 @@ an application-aware export or restore. `dotfiles audit` runs only the read-only
 | --- | --- | --- | --- |
 | `login-shell` | Confirms the account resolves to `/usr/bin/zsh` | Uses `chsh` only when needed | Intentional no-op |
 | `pre-commit` | Validates config and confirms this clone's hook | Installs the hook and its pinned environments | Intentional no-op |
+| `mimeapps` | Confirms `mimeapps.list` is a regular file matching the snapshot | Atomically installs a regular file so desktop applications can replace it safely | Atomically captures the live default-application associations |
 | `gnome` | Verifies the sanitized round trip, safety keys, and wallpaper | Additively loads sanitized dconf, requires package-owned extensions, enforces idle lock/passworded sharing, sets the committed wallpaper, regenerates the palette | Atomically stages sanitized dconf and extensions; refuses an unknown enabled-extension state |
 | `dms` | Reports whether DMS is installed | Leaves session-owned preferences manual | Intentional no-op |
 | `niri` | Verifies `config.kdl` is linked to the Stow package | Static config is already handled by Stow | Runtime/output state remains machine-local |
@@ -36,3 +37,8 @@ and can contain exact device identifiers. Review their diffs before publishing.
 The current user-authored autostart entry enables the SDK server on OpenRGB's
 default all-interface address; restrict it to loopback or enforce UFW port 6742
 rules if remote SDK clients are not intended.
+
+`mimeapps.list` is deliberately not a Stow link. GLib-based default-application
+writers replace this file atomically, and following Stow's relative link while
+creating the adjacent temporary file can fail. Use `dotfiles capture` after
+changing defaults, inspect the diff, and commit the updated snapshot.

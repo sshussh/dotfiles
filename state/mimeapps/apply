@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
+source_file="$repo/state/mimeapps/mimeapps.list"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+destination="$config_home/mimeapps.list"
+
+[[ -f "$source_file" ]] || { echo "mimeapps snapshot is missing" >&2; exit 1; }
+mkdir -p -- "$config_home"
+
+if [[ -L "$destination" ]]; then
+  resolved=$(readlink -f -- "$destination" || true)
+  legacy="$repo/gnome-desktop/.config/mimeapps.list"
+  [[ "$resolved" == "$legacy" || "$resolved" == "$source_file" ]] || {
+    echo "refusing to replace an unexpected mimeapps symlink: $destination -> $(readlink -- "$destination")" >&2
+    exit 1
+  }
+elif [[ -e "$destination" && ! -f "$destination" ]]; then
+  echo "refusing to replace a non-regular mimeapps path: $destination" >&2
+  exit 1
+elif [[ -f "$destination" ]] && cmp -s -- "$source_file" "$destination"; then
+  echo "mimeapps snapshot is already applied"
+  exit 0
+fi
+
+temporary=$(mktemp "$config_home/.mimeapps.list.tmp.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+install -m 0644 -- "$source_file" "$temporary"
+mv -f -- "$temporary" "$destination"
+trap - EXIT
+echo "installed mimeapps snapshot as mutable runtime state"

@@ -68,7 +68,32 @@ class DotfilesIntegrationTest(unittest.TestCase):
             self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
             self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
             self.assertTrue((Path(target) / ".zshenv").is_symlink())
+            self.assertFalse((Path(target) / ".config/mimeapps.list").exists())
             self.assertIn("--simulate", preview.stdout)
+
+    def test_mimeapps_apply_replaces_the_legacy_stow_link(self) -> None:
+        handler = ROOT / "state/mimeapps/apply"
+        snapshot = ROOT / "state/mimeapps/mimeapps.list"
+        legacy_snapshot = ROOT / "gnome-desktop/.config/mimeapps.list"
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / ".config"
+            config.mkdir()
+            destination = config / "mimeapps.list"
+            destination.symlink_to(legacy_snapshot)
+            environment = os.environ.copy()
+            environment["HOME"] = home
+            environment.pop("XDG_CONFIG_HOME", None)
+            result = subprocess.run(
+                [str(handler)],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(destination.is_file())
+            self.assertFalse(destination.is_symlink())
+            self.assertEqual(destination.read_bytes(), snapshot.read_bytes())
 
     def test_preflight_rejects_a_regular_file_conflict(self) -> None:
         with tempfile.TemporaryDirectory() as target:

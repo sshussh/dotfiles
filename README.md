@@ -49,8 +49,9 @@ confirmation. Its order is intentional:
 5. restow the user packages with `--no-folding`;
 6. install Zinit, Oh My Zsh, and four plugins at full Git commits;
 7. converge `/etc` content, mode, and ownership and set the profile timezone;
-8. restore portable state, including the Zsh login shell and local pre-commit
-   hook; then reload and enable declared services.
+8. restore portable state, including mutable MIME defaults, the Zsh login
+   shell, and the local pre-commit hook; then reload and enable declared
+   services.
 
 Snapper configs and Btrfs scrub timers are gated separately. After verifying
 the subvolume and mount layout described in [`system/README.md`](system/README.md),
@@ -97,7 +98,7 @@ confirmation modes rather than silently changing their meaning.
 | Layer | Managed | Deliberately manual |
 | --- | --- | --- |
 | Packages | Curated official/AUR lists, pinned AUR commits, pinned `pyrs` source/toolchain | Extra installed packages are recorded in locks but never removed |
-| Home | Stow links plus six pinned Zsh Git sources, login shell, and repository hook | DMS session/preferences, browser/mail/chat profiles, credentials |
+| Home | Stow links plus six pinned Zsh Git sources, mutable MIME defaults, login shell, and repository hook | DMS session/preferences, browser/mail/chat profiles, credentials |
 | GNOME | Sanitized additive dconf, package-owned extensions, five-minute lock, committed wallpaper | Monitor layout, location, app usage/history, runtime palette values |
 | System | Stable pacman policy, timezone, locale/keyboard, mkinitcpio/GRUB input, zram, Reflector, coredumps, GRUB-Btrfs | fstab, kernel root/encryption arguments, Secure Boot keys, UFW rules |
 | Versions | Latest/dated locks, source revisions, Stow/system hashes, tool versions | Historical Arch binaries and the Codex current-release channel |
@@ -111,7 +112,7 @@ directories real so applications can create adjacent state safely.
 | --- | --- |
 | `zsh-bootstrap` | `~/.zshenv` and `ZDOTDIR` bootstrap |
 | `terminal` | Zsh, Fish, Ghostty, Kitty helpers, btop, and Neovim |
-| `gnome-desktop` | MIME defaults, environment, user directories, OpenRGB autostart, user service, committed wallpaper |
+| `gnome-desktop` | Environment, user directories, OpenRGB autostart, user service, committed wallpaper |
 | `matugen` | DMS-compatible templates, wallpaper controller, theme/icon discovery files |
 | `zed` | Zed settings, keymap, and tasks |
 | `niri` | Portable Niri compositor configuration; generated DMS includes stay local |
@@ -144,7 +145,9 @@ remove that observational field before publishing a lock from a private host.
 See [`state/README.md`](state/README.md) for the handler matrix. Captures use
 temporary files and refuse to replace good manifests with empty output. GNOME
 capture has a safe fallback when it cannot contact a running Shell and supports
-the non-writing `./scripts/export-gnome --check` mode.
+the non-writing `./scripts/export-gnome --check` mode. MIME defaults are copied
+and captured as mutable state because desktop applications atomically replace
+`mimeapps.list`; it must not be a Stow symlink.
 
 The ignore policy blocks common credential stores, browser profiles, shell
 histories, private Codex state, nested repositories, databases, logs, and
