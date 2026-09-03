@@ -28,6 +28,7 @@ x-scheme-handler/https=zen.desktop
 x-scheme-handler/mailto=zen.desktop
 x-scheme-handler/unknown=zen.desktop
 x-scheme-handler/codex=chatgpt.desktop
+application/vnd.openxmlformats-officedocument.presentationml.presentation=onlyoffice-desktopeditors.desktop
 
 [Added Associations]
 application/pdf=org.gnome.Papers.desktop;
@@ -57,3 +58,4 @@ x-scheme-handler/file=org.gnome.Nautilus.desktop;
 x-scheme-handler/http=zen.desktop;
 x-scheme-handler/https=zen.desktop;
 x-scheme-handler/mailto=zen.desktop;
+application/vnd.openxmlformats-officedocument.presentationml.presentation=onlyoffice-desktopeditors.desktop;
