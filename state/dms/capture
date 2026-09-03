@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-echo "DMS state is intentionally not captured (session/private data)"

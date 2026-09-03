@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-echo "Niri DMS fragments and output state remain machine-local; portable policy is edited directly"

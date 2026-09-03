@@ -1,24 +1,55 @@
 #!/usr/bin/env bash
-# Compatibility wrapper; new automation should invoke ./dotfiles directly.
+# Stow every package directory onto $HOME (or $STOW_TARGET).
 set -euo pipefail
-repo=$(CDPATH= cd -- "$(dirname "$0")" && pwd -P)
 
-args=()
-for argument in "$@"; do
-  case "$argument" in
-    -n|--no|--simulate) args+=(--dry-run) ;;
-    --skip-deps) args+=(--skip-packages) ;;
-    --skip-dconf|--skip-matugen) args+=(--skip-state) ;;
-    --force|--replace-existing|--adopt)
-      echo "install.sh: $argument is intentionally unsupported; resolve conflicts explicitly" >&2
-      exit 2
-      ;;
-    -y|--yes)
-      echo "install.sh: unattended package confirmation is intentionally unsupported" >&2
-      exit 2
-      ;;
-    *) args+=("$argument") ;;
-  esac
+repo=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+target=${STOW_TARGET:-$HOME}
+
+if ! command -v stow >/dev/null 2>&1; then
+  echo "install.sh: GNU Stow is required" >&2
+  exit 1
+fi
+
+simulate=()
+case "${1:-}" in
+  "" ) ;;
+  -n|--simulate|--dry-run) simulate=(--simulate) ;;
+  -h|--help)
+    echo "usage: $0 [--simulate]"
+    echo "  STOW_TARGET=/path  install into a different home"
+    exit 0
+    ;;
+  *)
+    echo "usage: $0 [--simulate]" >&2
+    exit 2
+    ;;
+esac
+
+is_stow_package() {
+  local dir=$1 name
+  [[ -d "$dir/.config" || -d "$dir/.local" ]] && return 0
+  for name in "$dir"/.[!.]* "$dir"/..?*; do
+    [[ -e "$name" ]] || continue
+    [[ $(basename -- "$name") == .stow-local-ignore ]] && continue
+    return 0
+  done
+  return 1
+}
+
+packages=()
+for dir in "$repo"/*/; do
+  name=$(basename -- "$dir")
+  [[ "$name" == __pycache__ ]] && continue
+  is_stow_package "$dir" || continue
+  packages+=("$name")
 done
 
-exec "$repo/dotfiles" apply --profile "${DOTFILES_PROFILE:-workstation}" "${args[@]}"
+if ((${#packages[@]} == 0)); then
+  echo "install.sh: no Stow packages found" >&2
+  exit 1
+fi
+
+cd -- "$repo"
+mkdir -p -- "$target"
+stow --dir="$repo" --target="$target" --no-folding --restow "${simulate[@]}" "${packages[@]}"
+echo "stowed: ${packages[*]}"

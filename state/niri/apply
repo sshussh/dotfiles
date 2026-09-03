@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$here/../.." && pwd)
-. "$repo/state/lib/mutable-files.sh"
-destination="${XDG_CONFIG_HOME:-$HOME/.config}/niri/config.kdl"
-mutable_install "$here/config.kdl" "$destination" \
-  "$repo/niri/.config/niri/config.kdl"
-echo "installed regular Niri entrypoint; portable policy remains Stow-managed"

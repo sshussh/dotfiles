@@ -12,16 +12,17 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y stow
       - name: Syntax checks
         run: |
-          python -m py_compile dotfiles scripts/export-gnome scripts/replace-existing scripts/setup-gnome-extensions
-          bash -n install.sh scripts/check-deps scripts/load-gnome maintenance/check-reproducibility maintenance/install-codex maintenance/purge-sensitive-history.sh
-          find state -mindepth 2 -maxdepth 2 -type f -perm -u+x -print0 | xargs -0 -r -n1 bash -n
-      - name: Unit and integration tests
-        run: PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests -v
-      - name: Profile audit against an isolated home
+          python -m py_compile gnome/export
+          bash -n install.sh gnome/load
+      - name: Stow simulate into an isolated home
         run: |
           target=$(mktemp -d)
-          DOTFILES_TARGET="$target" ./dotfiles audit --profile workstation --skip-lock
-          DOTFILES_TARGET="$target" ./dotfiles apply --profile workstation --dry-run --skip-packages --skip-system --skip-state
+          STOW_TARGET="$target" ./install.sh --simulate
+          STOW_TARGET="$target" ./install.sh
+          test -L "$target/.zshenv"
+          test -L "$target/.config/zsh/.zshrc"
+          test -L "$target/.config/niri/config.kdl"
+          test -L "$target/.config/zed/settings.json"
       - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

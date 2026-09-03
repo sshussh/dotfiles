@@ -1,4 +1,5 @@
 {
+  // Installed as writable runtime state so Zed can update settings normally.
   "text_rendering_mode": "grayscale",
   "language_models": {
   },

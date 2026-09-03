@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-command -v dms >/dev/null 2>&1 && echo "DMS available" || echo "WARN: DMS is not installed"

@@ -182,7 +182,7 @@ DYNAMIC_INTERFACE_KEYS = {
 
 
 def die(msg: str) -> None:
-    print(f"export-gnome: {msg}", file=sys.stderr)
+    print(f"gnome/export: {msg}", file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -327,7 +327,7 @@ def read_enabled() -> list[str]:
         except (SyntaxError, ValueError):
             values = None
         if isinstance(values, list) and all(isinstance(value, str) for value in values):
-            print("export-gnome: GNOME Shell unavailable; used gsettings fallback", file=sys.stderr)
+            print("gnome/export: GNOME Shell unavailable; used gsettings fallback", file=sys.stderr)
             return [value for value in values if value not in BLOCKED_EXTENSION_UUIDS]
     die("cannot determine enabled extensions; refusing to overwrite the snapshot")
 

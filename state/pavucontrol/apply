@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$here/../.." && pwd)
-. "$repo/state/lib/mutable-files.sh"
-destination="${XDG_CONFIG_HOME:-$HOME/.config}/pavucontrol.ini"
-mutable_install "$here/pavucontrol.ini" "$destination" \
-  "$repo/gnome-desktop/.config/pavucontrol.ini"
-echo "installed pavucontrol preferences as mutable runtime state"

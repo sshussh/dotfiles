@@ -3,11 +3,11 @@
 # Safe to re-run. Missing keys in the dump are left untouched.
 set -euo pipefail
 
-repo_dir="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-dconf_dir="$repo_dir/gnome/dconf"
+gnome_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+dconf_dir="$gnome_dir/dconf"
 
 if ! command -v dconf >/dev/null 2>&1; then
-  echo "load-gnome: dconf is not installed" >&2
+  echo "gnome/load: dconf is not installed" >&2
   exit 1
 fi
 
@@ -23,7 +23,7 @@ load() {
   elif command -v dbus-run-session >/dev/null 2>&1; then
     dbus-run-session -- dconf load "$prefix" <"$path"
   else
-    echo "load-gnome: no DBus session; cannot load $file" >&2
+    echo "gnome/load: no DBus session; cannot load $file" >&2
     return 1
   fi
   echo "loaded $file -> $prefix"
@@ -34,9 +34,9 @@ load org.gtk.ini /org/gtk/
 load com.ini /com/
 load io.ini /io/
 
-if [ -f "$repo_dir/gnome/extensions.txt" ]; then
+if [ -f "$gnome_dir/extensions.txt" ]; then
   echo
   echo "Enabled extensions on the source machine:"
-  awk -F'\t' '$2=="enabled" {print "  " $1 "  (" $3 ")"}' "$repo_dir/gnome/extensions.txt"
+  awk -F'\t' '$2=="enabled" {print "  " $1 "  (" $3 ")"}' "$gnome_dir/extensions.txt"
   echo "Install those, then log out of GNOME so the shell picks them up."
 fi

@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-repo=$(CDPATH= cd -- "$here/../.." && pwd)
-. "$repo/state/lib/mutable-files.sh"
-destination="${XDG_CONFIG_HOME:-$HOME/.config}/btop/btop.conf"
-mutable_install "$here/btop.conf" "$destination" \
-  "$repo/terminal/.config/btop/btop.conf"
-echo "installed btop configuration as mutable runtime state"
