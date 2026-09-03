@@ -1,7 +1,6 @@
 # Dotfiles
 
-GNU Stow packages for `$HOME`, plus sanitized GNOME dconf dumps. There is no
-package installer, system layer, or state manager.
+GNU Stow packages for `$HOME`, plus sanitized GNOME dconf dumps.
 
 ```sh
 sudo pacman -S --needed stow
@@ -28,9 +27,9 @@ cp ~/.config/zed/settings.json zed/.config/zed/
 A new top-level directory is a new package. `./install.sh` picks it up
 automatically.
 
-If Stow reports a conflict, the live path already exists and is not this
-package's symlink. Move that file aside, or copy it into the package first if
-that version is the one to keep, then restow.
+Existing regular files that match a package are replaced with links.
+Differing files are copied to `~/.cache/dotfiles-backup/` first. Unexpected
+symlinks still make Stow abort.
 
 ## GNOME
 
