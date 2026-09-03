@@ -82,6 +82,7 @@ class DotfilesIntegrationTest(unittest.TestCase):
             self.assertEqual(preview.returncode, 0, preview.stdout + preview.stderr)
             self.assertTrue((Path(target) / ".zshenv").is_symlink())
             self.assertFalse((Path(target) / ".config/mimeapps.list").exists())
+            self.assertFalse((Path(target) / ".config/btop/btop.conf").exists())
             self.assertFalse((Path(target) / ".config/pavucontrol.ini").exists())
             self.assertFalse((Path(target) / ".config/user-dirs.dirs").exists())
             self.assertFalse((Path(target) / ".config/user-dirs.locale").exists())
@@ -170,9 +171,24 @@ class DotfilesIntegrationTest(unittest.TestCase):
                 self.assertFalse(destination.is_symlink())
                 self.assertEqual(destination.read_bytes(), snapshot.read_bytes())
 
-    def test_btop_does_not_rewrite_its_stowed_configuration(self) -> None:
-        config = (ROOT / "terminal/.config/btop/btop.conf").read_text()
-        self.assertIn("save_config_on_exit = false", config)
+    def test_btop_is_seeded_as_regular_writable_state(self) -> None:
+        with tempfile.TemporaryDirectory() as home:
+            destination_dir = Path(home) / ".config/btop"
+            destination_dir.mkdir(parents=True)
+            destination = destination_dir / "btop.conf"
+            destination.symlink_to(ROOT / "terminal/.config/btop/btop.conf")
+            result = run_handler("btop", "apply", home)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            audit = run_handler("btop", "audit", home)
+            self.assertEqual(audit.returncode, 0, audit.stdout + audit.stderr)
+            self.assertTrue(destination.is_file())
+            self.assertFalse(destination.is_symlink())
+            self.assertIn("save_config_on_exit = true", destination.read_text())
+
+            snapshot = (ROOT / "state/btop/btop.conf").read_bytes()
+            destination.write_bytes(snapshot + b"\n# simulated runtime write\n")
+            self.assertFalse(destination.is_symlink())
+            self.assertEqual((ROOT / "state/btop/btop.conf").read_bytes(), snapshot)
 
     def test_preflight_rejects_a_regular_file_conflict(self) -> None:
         with tempfile.TemporaryDirectory() as target:

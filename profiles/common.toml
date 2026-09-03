@@ -5,7 +5,7 @@ stow_packages = [
   "niri", "fontconfig", "xresources"
 ]
 state_handlers = [
-  "login-shell", "pre-commit", "mimeapps", "pavucontrol", "user-dirs",
+  "login-shell", "pre-commit", "mimeapps", "btop", "pavucontrol", "user-dirs",
   "gnome", "dms", "niri", "vscodium", "zed"
 ]
 
