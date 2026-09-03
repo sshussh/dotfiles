@@ -6,10 +6,10 @@ reports all known unapplied host drift without hiding failures.
 
 ## Passed checks
 
-- Eight unit/integration tests: two real idempotent Stow deployments, Stow's
-  real simulator, regular-file conflict preservation, mutable MIME-state
-  migration, lock JSON, active lock hash comparison, Git-remote normalization,
-  and non-mutating GNOME help.
+- Twelve unit/integration tests: two real idempotent Stow deployments, Stow's
+  real simulator, regular-file conflict preservation, all five mutable-file
+  migration classes, btop write suppression, lock JSON/hash comparison,
+  Git-remote normalization, and non-mutating GNOME help.
 - Python compilation; Bash and Zsh syntax; all five TOML and two YAML files;
   `pacman-conf`; `niri validate`; and `git diff --check`.
 - All 118 official package names resolve in the configured Arch repositories.
@@ -18,13 +18,17 @@ reports all known unapplied host drift without hiding failures.
 - Both lock files are equal and match a fresh preview except for generation
   time. Audit now compares package membership/versions, unmanaged explicit
   packages, AUR/Cargo/Git pins, tool versions, Stow hash, and all 12 rendered
-  system-template hashes.
-- All nine Stow packages resolve to repository-owned links in the live home.
-  Niri, Kitty helpers, fontconfig, Xresources, wallpaper, OpenRGB, and Matugen
-  discovery files validate at their final paths.
-- `~/.config/mimeapps.list` is a regular file matching its explicit state
-  snapshot. The migration test proves the state handler replaces the former
-  relative Stow link, avoiding atomic default-application write failures.
+  system-template hashes, plus the complete mutable-state tree hash.
+- All eight Stow packages resolve to repository-owned links in the live home.
+  Niri's portable policy, Kitty helpers, fontconfig, Xresources, wallpaper,
+  and Matugen discovery files validate at their final paths.
+- MIME defaults, pavucontrol preferences, both XDG user-directory files, the
+  Niri entrypoint, and all OpenRGB data are regular files matching explicit
+  state snapshots. Migration tests prove each handler safely replaces its old
+  link, including dangling links whose former repository parent was removed.
+- Niri validates the complete live composition: the regular entrypoint loads
+  Stow-managed portable policy plus optional DMS-generated fragments. Btop is
+  still Stow-managed but no longer saves runtime UI changes on exit.
 - The GNOME capture/apply/capture round trip is clean. The snapshot excludes
   location, certificates, app-folder IDs, stale extension inventory/settings,
   unavailable launchers, hardware sensor IDs, GameMode, and runtime palette
@@ -41,19 +45,19 @@ reports all known unapplied host drift without hiding failures.
 
 ## Current reported drift
 
-The real-host default audit reports **14 warnings and 0 errors**:
+The real-host default audit reports **13 warnings and 0 errors**:
 
 - six normalized `/etc` templates differ: pacman, mkinitcpio, GRUB, the
   GRUB-Btrfs drop-in, vconsole, and the X11 keyboard file;
-- six selected official packages are absent: `pavucontrol`, `ripgrep`,
-  `starship`, `gnome-shell-extensions`, `git-filter-repo`, and `pre-commit`;
+- five selected official packages are absent: `ripgrep`, `starship`,
+  `gnome-shell-extensions`, `git-filter-repo`, and `pre-commit`;
 - `pyrs` is installed from a local path instead of the pinned Git revision;
 - this clone's pre-commit hook is inactive because `pre-commit` is absent.
 
 Auditing the opt-in Snapper policy adds the two differing Snapper templates,
-for **16 warnings and 0 errors**. Its optional services are already enabled.
+for **15 warnings and 0 errors**. Its optional services are already enabled.
 
-The full dry run passes. It proposes only the six missing official packages,
+The full dry run passes. It proposes only the five missing official packages,
 the pinned Rust/Cargo install, changed `/etc` templates, and declared state and
 service actions. It does not pass any installed package—including `cava`—to
 pacman, and performs no pruning, upgrade, or downgrade.
@@ -69,7 +73,7 @@ checkout was installed.
 - Arch locks are observational; historical official package binaries are not
   archived. The manual Codex helper intentionally follows OpenAI's current
   standalone release channel and authentication remains interactive.
-- DMS preferences/session state, generated Niri monitor output, Zed extension
+- DMS preferences/session state, generated Niri fragments/monitor output, Zed extension
   installation, browser/mail/chat profiles, and all application authentication
   remain manual.
 - Filesystem identifiers, kernel root/encryption arguments, Secure Boot, UFW
@@ -84,6 +88,6 @@ checkout was installed.
   explicitly destructive decisions.
 
 Within those boundaries, a booting Arch installation can converge additively:
-software and user Git sources are pinned where upstream permits, home files are
-Stow-owned, system policy is rendered and backed up, portable state is explicit,
-and both content and machine drift are auditable.
+software and user Git sources are pinned where upstream permits, static home
+files are Stow-owned, mutable files have explicit snapshots, system policy is
+rendered and backed up, and both content and machine drift are auditable.
