@@ -88,6 +88,15 @@ class DotfilesIntegrationTest(unittest.TestCase):
             self.assertFalse((Path(target) / ".config/user-dirs.locale").exists())
             self.assertFalse((Path(target) / ".config/niri/config.kdl").exists())
             self.assertTrue((Path(target) / ".config/niri/portable.kdl").is_symlink())
+            self.assertTrue(
+                (Path(target) / ".config/wireplumber/wireplumber.conf.d/52-prefer-analog.conf").is_symlink()
+            )
+            self.assertTrue(
+                (Path(target) / ".config/wireplumber/wireplumber.conf.d/53-disable-hdmi.conf").is_symlink()
+            )
+            self.assertTrue(
+                (Path(target) / ".config/wireplumber/wireplumber.conf.d/51-dms-audio-aliases.conf").is_symlink()
+            )
             self.assertFalse((Path(target) / ".config/OpenRGB").exists())
             self.assertIn("--simulate", preview.stdout)
 

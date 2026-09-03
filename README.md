@@ -117,6 +117,7 @@ directories real so applications can create adjacent state safely.
 | `zed` | Zed settings, keymap, and tasks |
 | `niri` | Portable Niri policy and binds; a regular state-managed entrypoint loads local DMS fragments |
 | `fontconfig` / `xresources` | Arabic font preference and cursor defaults |
+| `wireplumber` | Analog-only headset/speakers, named sinks, NVIDIA HDMI audio disabled |
 
 Stow conflicts are rejected before package or system mutations. Do not use
 `stow --adopt`: it can copy unreviewed machine state into this public repo.
