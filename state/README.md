@@ -9,6 +9,7 @@ an application-aware export or restore. `dotfiles audit` runs only the read-only
 | `login-shell` | Confirms the account resolves to `/usr/bin/zsh` | Uses `chsh` only when needed | Intentional no-op |
 | `pre-commit` | Validates config and confirms this clone's hook | Installs the hook and its pinned environments | Intentional no-op |
 | `mimeapps` | Confirms `mimeapps.list` is a regular file matching the snapshot | Atomically installs a regular file so desktop applications can replace it safely | Atomically captures the live default-application associations |
+| `btop` | Confirms its configuration is a regular file matching the snapshot | Atomically installs a writable regular file without disabling save-on-exit | Atomically captures the live configuration |
 | `pavucontrol` | Confirms its preferences are a regular file matching the snapshot | Atomically installs a regular file safe for GLib replacement writes | Atomically captures the live preferences |
 | `user-dirs` | Confirms both XDG user-directory files are regular and match | Atomically installs both files and creates their declared directories | Atomically captures both live files |
 | `gnome` | Verifies the sanitized round trip, safety keys, and wallpaper | Additively loads sanitized dconf, requires package-owned extensions, enforces idle lock/passworded sharing, sets the committed wallpaper, regenerates the palette | Atomically stages sanitized dconf and extensions; refuses an unknown enabled-extension state |
@@ -44,6 +45,7 @@ rules if remote SDK clients are not intended.
 Application-owned mutable files are deliberately not Stow links. GLib-based
 writers may replace them atomically, while other applications rewrite them in
 place; either behavior can break a link or silently modify the repository.
-This boundary covers `mimeapps.list`, pavucontrol, XDG user directories, the
-Niri entrypoint DMS edits, and OpenRGB data. Use `dotfiles capture` after an
-intentional change, inspect the diff, and commit the updated snapshot.
+This boundary covers `mimeapps.list`, btop, pavucontrol, XDG user directories,
+the Niri entrypoint DMS edits, and OpenRGB data. The repository does not disable
+their normal write behavior. Use `dotfiles capture` after an intentional change,
+inspect the diff, and commit the updated snapshot.

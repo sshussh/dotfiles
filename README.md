@@ -111,7 +111,7 @@ directories real so applications can create adjacent state safely.
 | Package | Main contents |
 | --- | --- |
 | `zsh-bootstrap` | `~/.zshenv` and `ZDOTDIR` bootstrap |
-| `terminal` | Zsh, Fish, Ghostty, Kitty helpers, btop, and Neovim |
+| `terminal` | Zsh, Fish, Ghostty, Kitty helpers, and Neovim |
 | `gnome-desktop` | Environment, OpenRGB autostart, user service, committed wallpaper |
 | `matugen` | DMS-compatible templates, wallpaper controller, theme/icon discovery files |
 | `zed` | Zed settings, keymap, and tasks |
@@ -146,9 +146,9 @@ temporary files and refuse to replace good manifests with empty output. GNOME
 capture has a safe fallback when it cannot contact a running Shell and supports
 the non-writing `./scripts/export-gnome --check` mode. MIME defaults,
 pavucontrol preferences, XDG user-directory files, the DMS-owned Niri
-entrypoint, and OpenRGB data are copied and captured as ordinary files because
-their applications may replace or rewrite them; they must not be Stow links.
-Btop remains static, with exit-time configuration saving disabled.
+entrypoint, btop configuration, and OpenRGB data are copied and captured as
+ordinary files because their applications may replace or rewrite them; they
+must not be Stow links. Application write and save behavior remains enabled.
 
 The ignore policy blocks common credential stores, browser profiles, shell
 histories, private Codex state, nested repositories, databases, logs, and

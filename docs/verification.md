@@ -7,8 +7,8 @@ reports all known unapplied host drift without hiding failures.
 ## Passed checks
 
 - Twelve unit/integration tests: two real idempotent Stow deployments, Stow's
-  real simulator, regular-file conflict preservation, all five mutable-file
-  migration classes, btop write suppression, lock JSON/hash comparison,
+  real simulator, regular-file conflict preservation, all six mutable-file
+  migration classes, preserved btop runtime writes, lock JSON/hash comparison,
   Git-remote normalization, and non-mutating GNOME help.
 - Python compilation; Bash and Zsh syntax; all five TOML and two YAML files;
   `pacman-conf`; `niri validate`; and `git diff --check`.
@@ -22,13 +22,14 @@ reports all known unapplied host drift without hiding failures.
 - All eight Stow packages resolve to repository-owned links in the live home.
   Niri's portable policy, Kitty helpers, fontconfig, Xresources, wallpaper,
   and Matugen discovery files validate at their final paths.
-- MIME defaults, pavucontrol preferences, both XDG user-directory files, the
-  Niri entrypoint, and all OpenRGB data are regular files matching explicit
-  state snapshots. Migration tests prove each handler safely replaces its old
-  link, including dangling links whose former repository parent was removed.
+- MIME defaults, btop and pavucontrol preferences, both XDG user-directory
+  files, the Niri entrypoint, and all OpenRGB data are regular files matching
+  explicit state snapshots. Migration tests prove each handler safely replaces
+  its old link, including dangling links whose former repository parent was
+  removed.
 - Niri validates the complete live composition: the regular entrypoint loads
   Stow-managed portable policy plus optional DMS-generated fragments. Btop is
-  still Stow-managed but no longer saves runtime UI changes on exit.
+  seeded as a regular file and retains its normal save-on-exit behavior.
 - The GNOME capture/apply/capture round trip is clean. The snapshot excludes
   location, certificates, app-folder IDs, stale extension inventory/settings,
   unavailable launchers, hardware sensor IDs, GameMode, and runtime palette
