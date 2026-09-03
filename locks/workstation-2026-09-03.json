@@ -103,7 +103,7 @@
     "vim": "9.2.1011-1",
     "yelp": "49.2-1"
   },
-  "generated_at": "2026-09-03T07:12:42+03:00",
+  "generated_at": "2026-09-03T07:45:58+03:00",
   "git_sources": [
     {
       "name": "zinit",
@@ -227,6 +227,7 @@
     "pacman-contrib": "1.13.1-1",
     "papers": "50.2-1",
     "paru": "2.1.0-2",
+    "pavucontrol": "1:6.2-1",
     "pipewire": "1:1.6.8-1",
     "pipewire-alsa": "1:1.6.8-1",
     "pipewire-jack": "1:1.6.8-1",
@@ -265,7 +266,6 @@
     "zsh": "5.9.2-1"
   },
   "missing_desired": [
-    "pavucontrol",
     "ripgrep",
     "starship",
     "gnome-shell-extensions",
@@ -274,7 +274,8 @@
   ],
   "profile": "workstation",
   "schema_version": 1,
-  "stow_tree_sha256": "6fd1f2ce54191cb5d7a836f1b106071d90ac90d907d04908ec38796786a704f9",
+  "state_tree_sha256": "cd661f7d9a2858a47d0d038483db98f3caa5444bb86c204b51cd27356434199b",
+  "stow_tree_sha256": "e151ab35a30e85ee1d66c21f70230a9d7b7724d2b2df2687e9faed0993618a39",
   "system_template_sha256": {
     "/etc/X11/xorg.conf.d/00-keyboard.conf": "c77cb9a42f0b55ad9b8321264a7181ebd18ff41c4383c1ad131badbf10d979de",
     "/etc/default/grub": "92942a6ae0e93f9b47317fff2308bee4a067ba4cc4d1474802344afc03c9a749",
