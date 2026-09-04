@@ -56,7 +56,20 @@ clear_regular_conflicts() {
     rel=${source#"$repo/$package/"}
     dest=$target/$rel
     [[ -e "$dest" || -L "$dest" ]] || continue
-    [[ -L "$dest" || -d "$dest" ]] && continue
+    if [[ -L "$dest" ]]; then
+      # Stow owns relative links. Absolute links to the same file (from a
+      # manual ln -s /abs/path) look unmanaged and abort --restow.
+      if [[ "$(readlink -- "$dest")" == /* && "$(readlink -f -- "$dest")" == "$(readlink -f -- "$source")" ]]; then
+        if ((${#simulate[@]})); then
+          echo "would replace unmanaged symlink $dest"
+        else
+          echo "replace unmanaged symlink $dest"
+          rm -f -- "$dest"
+        fi
+      fi
+      continue
+    fi
+    [[ -d "$dest" ]] && continue
     [[ -f "$dest" ]] || {
       echo "install.sh: refusing to replace $dest" >&2
       return 1
@@ -96,4 +109,6 @@ for package in "${packages[@]}"; do
 done
 stow --dir="$repo" --target="$target" --no-folding --restow "${simulate[@]}" "${packages[@]}"
 echo "stowed: ${packages[*]}"
-[[ -n "$backup_root" ]] && echo "previous files: $backup_root"
+if [[ -n "$backup_root" ]]; then
+  echo "previous files: $backup_root"
+fi

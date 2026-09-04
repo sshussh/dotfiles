@@ -34,8 +34,11 @@ USER_HOME = Path.home()
 CONFIG_HOME = USER_HOME / ".config"
 CACHE_HOME = USER_HOME / ".cache" / "matugen"
 DMS = Path(os.environ["DMS_BIN"]).expanduser() if os.environ.get("DMS_BIN") else Path(shutil.which("dms") or (USER_HOME / ".local" / "bin" / "dms"))
-DMS_SHELL_DIR = Path(os.environ.get("DMS_SHELL_DIR", "/usr/share/quickshell/dms")).expanduser()
 DMS_STATE_DIR = Path(os.environ.get("DMS_STATE_DIR", str(USER_HOME / ".cache" / "DankMaterialShell"))).expanduser()
+PACKAGED_DMS_SHELL_DIRS = (
+    Path("/usr/share/quickshell/dms"),
+    USER_HOME / ".config" / "quickshell" / "dms",
+)
 DMS_SETTINGS = CONFIG_HOME / "DankMaterialShell" / "settings.json"
 WATCH_STATE = CACHE_HOME / "watch-state.json"
 LOCK_FILE = CACHE_HOME / "apply.lock"
@@ -156,6 +159,50 @@ GNOME_ACCENTS = {
     "purple": "#9141ac",
     "slate": "#6f8396",
 }
+
+
+def dms_shell_tree(path: Path) -> bool:
+    """True when `path` has the Matugen templates `dms matugen generate` needs."""
+    return (path / "shell.qml").is_file() and (path / "matugen" / "templates").is_dir()
+
+
+def runtime_dms_shell_dirs() -> list[Path]:
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    root = runtime / "danklinux-shell"
+    if not root.is_dir():
+        return []
+    found = [candidate for candidate in root.iterdir() if candidate.is_dir() and dms_shell_tree(candidate)]
+    found.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return found
+
+
+def ensure_dms_shell_extracted() -> None:
+    """Ask DMS to unpack its embedded UI when no shell tree is visible yet."""
+    if not DMS.is_file():
+        return
+    subprocess.run([str(DMS), "doctor"], capture_output=True, text=True, timeout=30, check=False)
+
+
+def resolve_dms_shell_dir() -> Path | None:
+    """Return a directory `dms matugen generate --shell-dir` can read templates from.
+
+    DMS 1.6 embeds the Quickshell UI. `dms matugen generate` still requires
+    `--shell-dir` because that is where GTK/Niri/terminal templates live. On
+    GNOME there is no running DMS instance, so we use a packaged tree when
+    present, otherwise the runtime extract under `$XDG_RUNTIME_DIR/danklinux-shell`.
+    """
+    configured = os.environ.get("DMS_SHELL_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    for candidate in PACKAGED_DMS_SHELL_DIRS:
+        if dms_shell_tree(candidate):
+            return candidate
+    found = runtime_dms_shell_dirs()
+    if found:
+        return found[0]
+    ensure_dms_shell_extracted()
+    found = runtime_dms_shell_dirs()
+    return found[0] if found else None
 
 
 def settings_if_available(schema_id: str) -> Gio.Settings | None:
@@ -624,8 +671,12 @@ class WallpaperPalette:
     def generate(self, palette_input: Path, mode: str) -> None:
         if not DMS.is_file():
             raise FileNotFoundError(f"DMS executable is missing: {DMS}")
-        if not DMS_SHELL_DIR.is_dir():
-            raise FileNotFoundError(f"DMS shell data is missing: {DMS_SHELL_DIR}")
+        shell_dir = resolve_dms_shell_dir()
+        if shell_dir is None or not dms_shell_tree(shell_dir):
+            raise FileNotFoundError(
+                "DMS shell templates are missing. Run `dms doctor` once or set DMS_SHELL_DIR "
+                "to a directory that contains shell.qml and matugen/templates."
+            )
 
         settings = self.dms_settings()
         scheme = os.environ.get("MATUGEN_SCHEME", str(settings.get("matugenScheme", "scheme-tonal-spot")))
@@ -638,7 +689,7 @@ class WallpaperPalette:
             "--state-dir",
             str(DMS_STATE_DIR),
             "--shell-dir",
-            str(DMS_SHELL_DIR),
+            str(shell_dir),
             "--config-dir",
             str(CONFIG_HOME),
             "--kind",

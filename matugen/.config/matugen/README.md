@@ -5,6 +5,20 @@ regenerates a Material palette after each change. It follows the GNOME
 light/dark preference and, when the optional Hanabi extension is active,
 extracts a representative video frame with FFmpeg.
 
+GNOME and Niri share the same generated files (GTK, terminals, icons, Niri
+colors) but not the same watcher:
+
+- On GNOME, `matugen-wallpaper.service` is the only generator. Its unit has an
+  `ExecCondition` so it never starts in a Niri session.
+- On Niri, DankMaterialShell generates the palette when the wallpaper changes.
+  `dms.service` is pulled in by `niri.service` and is skipped on GNOME so it
+  cannot steal notifications from GNOME Shell.
+
+DMS 1.6 embeds its Quickshell UI in the `dms` binary. `dms matugen generate`
+still requires `--shell-dir` for its templates, so the GNOME watcher uses a
+packaged tree when one exists, otherwise the runtime extract under
+`$XDG_RUNTIME_DIR/danklinux-shell`.
+
 The current integration covers:
 
 - GNOME's nearest native accent and the Stow-managed `Matugen` Shell/icon
