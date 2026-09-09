@@ -1,5 +1,25 @@
 {
   // Installed as writable runtime state so Zed can update settings normally.
+  "ssh_connections": [
+    {
+      "host": "100.71.36.58",
+      "username": "shush",
+      "args": [],
+      "projects": [
+        {
+          "paths": [
+            "/home/shush"
+          ]
+        },
+        {
+          "paths": [
+            "/home/shush/dev/work/dc_web"
+          ]
+        }
+      ],
+      "nickname": "landing"
+    }
+  ],
   "text_rendering_mode": "grayscale",
   "language_models": {
   },
@@ -43,18 +63,26 @@
     },
     "claude-acp": {
       "default_config_options": {
-        "effort": "low",
-        "model": "claude-fable-5",
+        "fast": true,
+        "effort": "max",
+        "model": "opus[1m]",
         "mode": "auto",
       },
       "type": "registry",
     },
     "codex-acp": {
+      "default_config_options": {
+        "fast-mode": true,
+        "reasoning_effort": "high",
+        "mode": "agent-full-access",
+        "model": "gpt-5.6-luna"
+      },
       "type": "registry",
     },
   },
   "vim_mode": false,
   "edit_predictions": {
+    "allow_data_collection": "no",
     "codestral": {
       "api_url": "https://codestral.mistral.ai",
     },
@@ -71,7 +99,7 @@
       "max_output_tokens": 512,
     },
   },
-  "show_edit_predictions": true,
+  "show_edit_predictions": false,
   "completions": { "words": "enabled" },
   "languages": {
     "Shell Script": {
@@ -90,12 +118,20 @@
     "inline_blame": { "show_commit_summary": true, "enabled": true },
   },
   "agent": {
+    "sandbox_permissions": {
+      "allow_unsandboxed": true,
+      "write_paths": [
+        "/home/shush/dev"
+      ],
+      "allow_fs_write_all": true,
+      "allow_all_hosts": true
+    },
     "tool_permissions": {
       "default": "allow",
       "tools": {}
     },
     "auto_compact": {
-      "enabled": false,
+      "enabled": true,
     },
     "thinking_display": "always_expanded",
     "favorite_models": [
@@ -109,8 +145,8 @@
     "show_turn_stats": true,
     "single_file_review": true,
     "inline_assistant_model": {
-      "provider": "lmstudio",
-      "model": "zed-industries_zeta-2",
+      "provider": "zed.dev",
+      "model": "gpt-5.6-luna",
       "enable_thinking": false,
     },
     "enable_feedback": true,
@@ -119,7 +155,7 @@
       "effort": "medium",
       "enable_thinking": true,
       "provider": "zed.dev",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-5.6-terra",
     },
     "play_sound_when_agent_done": "always",
     "default_width": 550,
@@ -233,6 +269,9 @@
     "dark": "Catppuccin Latte",
   },
   "telemetry": { "diagnostics": false, "metrics": false },
-  "theme": { "mode": "system", "light": "DankShell Light", "dark": "DankShell Dark" },
+  "theme": { "mode": "dark", "light": "Noctalia Light", "dark": "Noctalia Dark" },
   "context_servers": {},
+  "file_types": {
+    "Python": ["pyrs"],
+  }
 }

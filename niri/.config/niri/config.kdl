@@ -1,12 +1,31 @@
-// Entrypoint. Portable policy lives in the included file below.
+// Entrypoint. Portable policy lives in the included file.
 include "portable.kdl"
 
-// DMS-generated, machine-local fragments. Missing files are valid on a new
-// system before DMS has generated them.
-include optional=true "dms/windowrules.kdl"
-include optional=true "dms/cursor.kdl"
-include optional=true "dms/layout.kdl"
-include optional=true "dms/outputs.kdl"
-include optional=true "dms/colors.kdl"
-include optional=true "dms/wpblur.kdl"
-include optional=true "dms/binds.kdl"
+// Noctalia: Wayland shell (bar, panels, launcher, notifications, wallpaper, OSDs).
+spawn-at-startup "noctalia"
+
+// Machine-local monitor config.
+output "HDMI-A-1" {
+    mode "1920x1080@200.000"
+}
+
+input {
+    mouse {
+        accel-profile "flat"
+    }
+    touchpad {
+        tap
+        natural-scroll
+        dwt
+    }
+    keyboard {
+        repeat-delay 500
+        xkb {
+            layout "us,ara"
+            options "grp:alt_shift_toggle"
+        }
+    }
+}
+
+// Noctalia-generated colours (niri template). Absent until first `templates-apply`.
+include optional=true "noctalia.kdl"

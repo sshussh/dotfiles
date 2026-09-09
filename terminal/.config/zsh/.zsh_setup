@@ -147,4 +147,3 @@ if (( ${+functions[zinit]} )); then
   fi
 fi
 
-fastfetch

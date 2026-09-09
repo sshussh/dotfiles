@@ -5,7 +5,7 @@ font-size = 14
 window-decoration = true
 window-padding-x = 10
 window-padding-y = 10
-background-opacity = 0.9
+background-opacity = 0.8
 background-blur-radius = 100
 background-blur = true
 
@@ -51,4 +51,4 @@ keybind = shift+enter=text:\n
 gtk-single-instance = true
 
 # Generated color theme
-theme = dankcolors
+theme = noctalia

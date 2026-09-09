@@ -1,0 +1,2 @@
+[widget.workspaces.actions]
+right = "exec niri msg action toggle-overview"
