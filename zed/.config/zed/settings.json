@@ -152,7 +152,7 @@
     "enable_feedback": true,
     "default_profile": "write",
     "default_model": {
-      "effort": "medium",
+      "effort": "high",
       "enable_thinking": true,
       "provider": "zed.dev",
       "model": "gpt-5.6-terra",
@@ -256,7 +256,7 @@
   "hover_popover_delay": 100,
   "show_signature_help_after_edits": true,
   "auto_signature_help": true,
-  "sticky_scroll": { "enabled": false },
+  "sticky_scroll": { "enabled": true },
   "vertical_scroll_margin": 8,
   "autosave": { "after_delay": { "milliseconds": 500 } },
   "show_wrap_guides": true,

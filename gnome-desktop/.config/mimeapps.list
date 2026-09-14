@@ -40,6 +40,8 @@ x-scheme-handler/mailto=zen.desktop
 x-scheme-handler/unknown=zen.desktop
 x-scheme-handler/discord=vesktop.desktop
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
+x-scheme-handler/grokbot=grok-bot.desktop
+x-scheme-handler/sand=grok-bot.desktop
 
 [Added Associations]
 application/json=dev.zed.Zed.desktop;

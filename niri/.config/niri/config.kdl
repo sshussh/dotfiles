@@ -20,10 +20,10 @@ input {
     }
     keyboard {
         repeat-delay 500
-        xkb {
-            layout "us,ara"
-            options "grp:alt_shift_toggle"
-        }
+        //xkb {
+        //    layout "us,ara"
+        //    options "grp:alt_shift_toggle"
+        //}
     }
 }
 
