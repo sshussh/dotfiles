@@ -150,9 +150,9 @@
       "enable_thinking": false,
     },
     "enable_feedback": true,
-    "default_profile": "write",
+    "default_profile": "ask",
     "default_model": {
-      "effort": "high",
+      "effort": "medium",
       "enable_thinking": true,
       "provider": "zed.dev",
       "model": "gpt-5.6-terra",
@@ -269,7 +269,7 @@
     "dark": "Material Icon Theme",
   },
   "telemetry": { "diagnostics": false, "metrics": false },
-  "theme": { "mode": "dark", "light": "Noctalia Light", "dark": "Noctalia Dark" },
+  "theme": { "mode": "dark", "light": "Noctalia Light", "dark": "Vercel Dark" },
   "context_servers": {},
   "file_types": {
     "Python": ["pyrs"],
