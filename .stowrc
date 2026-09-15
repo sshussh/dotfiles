@@ -1,3 +1,5 @@
 --no-folding
 --ignore=__pycache__
 --ignore=\.pyc$
+--ignore=(^|/)\.git(/|$)
+--ignore=(^|/)gnome(/|$)

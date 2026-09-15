@@ -1,0 +1,10 @@
+# Functional GNOME Shell extensions on the source machine.
+# Install the enabled ones before loading dconf, then log out and back in.
+# Bundled GNOME extensions live in /usr/share/gnome-shell/extensions.
+
+# Shell: GNOME Shell 50.4
+
+# uuid	state	name	source
+Vitals@CoreCoding.com	enabled	Vitals	system
+appindicatorsupport@rgcjonas.gmail.com	enabled	AppIndicator and KStatusNotifierItem Support	system
+clipboard-indicator@tudmotu.com	enabled	Clipboard Indicator	system

@@ -1,64 +1,28 @@
 # Dotfiles
 
-GNU Stow packages for `$HOME`, plus sanitized GNOME dconf dumps.
+Personal Linux desktop configuration managed with GNU Stow.
+
+## Install
+
+From this directory, link the active packages into your home directory:
 
 ```sh
-sudo pacman -S --needed stow
-git clone https://github.com/sshussh/dotfiles.git ~/.dotfiles
-cd ~/.dotfiles
-./install.sh
+stow --target="$HOME" ghostty niri noctalia zed zsh
 ```
 
-`install.sh` restows every top-level directory except `gnome/` onto `$HOME`
-with `--no-folding`. Preview with `./install.sh --simulate`. Use
-`STOW_TARGET=/path` to install into a different home.
-
-## Add a config
-
-Put files in this repo at the same path they should have under `$HOME`, then
-stow:
+To remove those links:
 
 ```sh
-mkdir -p zed/.config/zed
-cp ~/.config/zed/settings.json zed/.config/zed/
-./install.sh
+stow --delete --target="$HOME" ghostty niri noctalia zed zsh
 ```
 
-A new top-level directory is a new package. `./install.sh` picks it up
-automatically.
+## GNOME settings
 
-Existing regular files that match a package are replaced with links.
-Differing files are copied to `~/.cache/dotfiles-backup/` first. Unexpected
-symlinks still make Stow abort.
-
-## GNOME
-
-Dconf snapshots live under `gnome/dconf/` and are independent of Stow.
+GNOME settings are intentionally not managed by Stow. The snapshot contains
+functional settings only; themes, fonts, icons, backgrounds, dock, and blur
+settings are excluded.
 
 ```sh
-./gnome/export --check    # show drift without writing
-./gnome/export            # capture, then git diff gnome/
-./gnome/load              # restore onto this machine
+./gnome/.config/gnome/load    # apply the saved snapshot
+./gnome/.config/gnome/export  # refresh it from the current session
 ```
-
-Load is additive: keys in the snapshot are updated, other keys are left
-alone. Install the extensions listed in `gnome/extensions.txt`, then log out
-of GNOME.
-
-## Packages
-
-| Package | Contents |
-| --- | --- |
-| `zsh-bootstrap` | `~/.zshenv` so Zsh reads `~/.config/zsh` |
-| `terminal` | Zsh, Fish, Ghostty, Kitty, Neovim, btop |
-| `gnome-desktop` | Environment, OpenRGB autostart, user unit, wallpaper, MIME, pavucontrol, user-dirs |
-| `matugen` | Templates and wallpaper helper |
-| `niri` | Niri config and portable policy |
-| `fontconfig` | Arabic font preference |
-| `xresources` | Cursor defaults |
-| `wireplumber` | Analog-only headset/speakers, NVIDIA HDMI disabled |
-| `zed` | Editor settings, keymap, and tasks |
-| `openrgb` | Device profiles |
-
-Generated Matugen palettes, browser profiles, credentials, and shell history
-are gitignored.

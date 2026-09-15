@@ -266,7 +266,7 @@
   "icon_theme": {
     "mode": "dark",
     "light": "Catppuccin Frappé",
-    "dark": "Catppuccin Latte",
+    "dark": "Material Icon Theme",
   },
   "telemetry": { "diagnostics": false, "metrics": false },
   "theme": { "mode": "dark", "light": "Noctalia Light", "dark": "Noctalia Dark" },
