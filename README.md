@@ -10,6 +10,9 @@ From this directory, link the active packages into your home directory:
 stow --target="$HOME" ghostty niri noctalia zed zsh
 ```
 
+Zinit is installed automatically from its default branch the first time Zsh
+starts. Zinit then manages the current versions of the configured plugins.
+
 To remove those links:
 
 ```sh
